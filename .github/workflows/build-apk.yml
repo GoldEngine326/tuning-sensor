@@ -1,6 +1,8 @@
 name: Build and Release APK
 
 on:
+  release:
+    types: [published, created]
   push:
     tags:
       - 'v*'
@@ -27,21 +29,25 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Build APK (Release/Debug)
+      - name: Create Mock Keystore & Config if needed
         run: |
-          chmod +x gradlew || true
-          gradle assembleDebug --stacktrace
+          mkdir -p ~/.android
+          keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US" || true
+          touch .env || true
+          echo "" > .env
 
-      - name: Rename APK
+      - name: Build Debug APK
+        run: |
+          gradle :app:assembleDebug --stacktrace
+
+      - name: Rename APK Asset
         run: |
           cp app/build/outputs/apk/debug/app-debug.apk TuningSensor-latest.apk
 
-      - name: Create GitHub Release
+      - name: Upload APK to GitHub Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
         with:
           files: TuningSensor-latest.apk
-          name: Tuning Sensor Release ${{ github.ref_name }}
           draft: false
           prerelease: false
           generate_release_notes: true

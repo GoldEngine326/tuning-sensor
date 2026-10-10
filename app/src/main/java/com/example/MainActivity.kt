@@ -418,6 +418,19 @@ fun TuningAppContent(
             isDownloadingGitHubUpdate = false
           }
         }
+      },
+      onOpenInBrowser = {
+        try {
+          val browserIntent = android.content.Intent(
+            android.content.Intent.ACTION_VIEW,
+            android.net.Uri.parse("https://github.com/GoldEngine326/tuning-sensor/releases/latest")
+          ).apply {
+            flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+          }
+          context.startActivity(browserIntent)
+        } catch (e: Exception) {
+          android.widget.Toast.makeText(context, "Nie można otworzyć przeglądarki: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+        }
       }
     )
   }

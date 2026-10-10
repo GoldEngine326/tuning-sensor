@@ -27,6 +27,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -51,7 +52,8 @@ fun GitHubUpdateDialog(
   downloadProgress: Int,
   downloadError: String?,
   onDismiss: () -> Unit,
-  onStartUpdate: () -> Unit
+  onStartUpdate: () -> Unit,
+  onOpenInBrowser: () -> Unit = {}
 ) {
   if (releaseInfo == null) return
 
@@ -156,6 +158,17 @@ fun GitHubUpdateDialog(
             fontSize = 12.sp,
             fontWeight = FontWeight.Medium
           )
+          Spacer(Modifier.height(8.dp))
+          OutlinedButton(
+            onClick = onOpenInBrowser,
+            shape = RoundedCornerShape(8.dp),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = TunerAmber),
+            modifier = Modifier.fillMaxWidth()
+          ) {
+            Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("Pobierz plik APK z GitHuba przez przeglądarkę", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+          }
         }
       }
     },
