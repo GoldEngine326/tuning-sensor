@@ -1,0 +1,6 @@
+{
+  "name": "Tuning Sensor",
+  "description": "Baza wiedzy i pinoutów czujników oraz sterowników silnika (ECU / Standalone) dla tunerów.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

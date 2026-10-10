@@ -1,0 +1,144 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile containing persistent nickname and metadata",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID"
+        },
+        "nick": {
+          "type": "string",
+          "description": "Community nickname"
+        },
+        "email": {
+          "type": "string",
+          "description": "User email address"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update timestamp"
+        }
+      },
+      "required": ["userId", "nick"]
+    },
+    "Sensor": {
+      "title": "Sensor",
+      "description": "Tuning sensor or ECU component calibration and pinout specifications",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique sensor ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Component or sensor name"
+        },
+        "partNumber": {
+          "type": "string",
+          "description": "OEM or aftermarket part number"
+        },
+        "category": {
+          "type": "string",
+          "description": "Sensor category enum name"
+        },
+        "shortDescription": {
+          "type": "string",
+          "description": "Brief description of the component"
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "Primary thumbnail image (first image)"
+        },
+        "images": {
+          "type": "array",
+          "description": "List of cloud images attached to the component",
+          "items": {
+            "type": "string"
+          }
+        },
+        "vectorIllustrationKey": {
+          "type": "string",
+          "description": "Built-in artwork key fallback"
+        },
+        "authorNick": {
+          "type": "string",
+          "description": "Author nickname"
+        },
+        "authorId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the author"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update timestamp"
+        },
+        "rating": {
+          "type": "number",
+          "description": "Average community rating (1.0 to 5.0)"
+        },
+        "ratingVotesCount": {
+          "type": "integer",
+          "description": "Number of community rating votes"
+        },
+        "pullupRequired": {
+          "type": "boolean",
+          "description": "Whether a pullup resistor is required"
+        },
+        "pullupRecommendedValue": {
+          "type": "string",
+          "description": "Recommended pullup resistor value"
+        },
+        "pullupNote": {
+          "type": "string",
+          "description": "Notes regarding pullup wiring"
+        },
+        "importantNotes": {
+          "type": "string",
+          "description": "Important installation or tuning notes"
+        },
+        "pins": {
+          "type": "array",
+          "description": "Pinout configuration array"
+        },
+        "characteristic": {
+          "type": "object",
+          "description": "Primary calibration curve data"
+        },
+        "resistanceCharacteristic": {
+          "type": "object",
+          "description": "Secondary or NTC resistance curve data"
+        },
+        "isUserAdded": {
+          "type": "boolean",
+          "description": "Whether component was added by a community member"
+        }
+      },
+      "required": ["id", "name", "category", "authorId", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/User"
+      },
+      "description": "User profile with persistent community nickname"
+    },
+    "/sensors/{sensorId}": {
+      "schema": {
+        "$ref": "#/entities/Sensor"
+      },
+      "description": "Shared community tuning sensor catalog"
+    }
+  }
+}

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="0"
+                android:startY="0"
+                android:endX="108"
+                android:endY="108"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#14171E" />
+                <item android:offset="1.0" android:color="#212631" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Subtle ECU circuit trace lines in background -->
+    <path
+        android:strokeColor="#25FFFFFF"
+        android:strokeWidth="1"
+        android:pathData="M18,36 L36,36 L48,48 L72,48 L84,36 L90,36" />
+    <path
+        android:strokeColor="#1AFFFFFF"
+        android:strokeWidth="1"
+        android:pathData="M24,72 L42,72 L54,60 L66,60 L78,72 L88,72" />
+    <path
+        android:fillColor="#33FF5252"
+        android:pathData="M36,36m-2.5,0a2.5,2.5 0 1,0 5,0a2.5,2.5 0 1,0 -5,0" />
+    <path
+        android:fillColor="#33FFB300"
+        android:pathData="M72,48m-2.5,0a2.5,2.5 0 1,0 5,0a2.5,2.5 0 1,0 -5,0" />
+</vector>

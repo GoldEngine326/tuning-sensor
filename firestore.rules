@@ -1,0 +1,100 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny all access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidSensor(data) {
+      return data.id is string && data.id.size() >= 1 && data.id.size() <= 128 &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+             (!('partNumber' in data) || (data.partNumber is string && data.partNumber.size() <= 100)) &&
+             data.category is string && data.category.size() >= 1 && data.category.size() <= 50 &&
+             (!('shortDescription' in data) || (data.shortDescription is string && data.shortDescription.size() <= 500)) &&
+             (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 200000)) &&
+             (!('images' in data) || (data.images is list && data.images.size() <= 10)) &&
+             (!('vectorIllustrationKey' in data) || (data.vectorIllustrationKey is string && data.vectorIllustrationKey.size() <= 50)) &&
+             data.authorNick is string && data.authorNick.size() >= 1 && data.authorNick.size() <= 50 &&
+             data.authorId is string && data.authorId.size() >= 1 && data.authorId.size() <= 128 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time &&
+             (!('rating' in data) || (data.rating is number && data.rating >= 1.0 && data.rating <= 5.0)) &&
+             (!('ratingVotesCount' in data) || (data.ratingVotesCount is int && data.ratingVotesCount >= 0)) &&
+             (!('pullupRequired' in data) || data.pullupRequired is bool) &&
+             (!('pullupRecommendedValue' in data) || (data.pullupRecommendedValue is string && data.pullupRecommendedValue.size() <= 100)) &&
+             (!('pullupNote' in data) || (data.pullupNote is string && data.pullupNote.size() <= 500)) &&
+             (!('importantNotes' in data) || (data.importantNotes is string && data.importantNotes.size() <= 2000)) &&
+             (!('pins' in data) || (data.pins is list && data.pins.size() <= 100)) &&
+             (!('characteristic' in data) || data.characteristic is map) &&
+             (!('resistanceCharacteristic' in data) || data.resistanceCharacteristic == null || data.resistanceCharacteristic is map) &&
+             (!('isUserAdded' in data) || data.isUserAdded is bool) &&
+             (!('connectorImageUrl' in data) || (data.connectorImageUrl is string && data.connectorImageUrl.size() <= 200000)) &&
+             (!('lastEditedByNick' in data) || data.lastEditedByNick == null || (data.lastEditedByNick is string && data.lastEditedByNick.size() <= 50)) &&
+             (!('lastEditedAt' in data) || data.lastEditedAt == null || (data.lastEditedAt is timestamp && data.lastEditedAt <= request.time));
+    }
+
+    // User profiles for persistent nickname & preferences across devices and logins
+    match /users/{userId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if isSignedIn() && request.auth.uid == userId;
+      allow delete: if false;
+    }
+
+    // App configuration and auto-update tracking
+    match /app_config/{configDoc} {
+      allow get, list: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if false;
+    }
+
+    // Community sensor catalog - visible to all authenticated users
+    match /sensors/{sensorId} {
+      allow get, list: if isSignedIn();
+
+      allow create: if isSignedIn() &&
+                       isValidId(sensorId) &&
+                       incoming().id == sensorId &&
+                       incoming().authorId == request.auth.uid &&
+                       incoming().createdAt is timestamp &&
+                       incoming().createdAt <= request.time &&
+                       isValidSensor(incoming());
+
+      allow update: if isSignedIn() &&
+                       isValidId(sensorId) &&
+                       incoming().id == existing().id &&
+                       incoming().authorId == existing().authorId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().updatedAt is timestamp &&
+                       incoming().updatedAt <= request.time &&
+                       isValidSensor(incoming()) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'name', 'partNumber', 'category', 'shortDescription', 'imageUrl', 'images',
+                         'vectorIllustrationKey', 'pins', 'characteristic', 'resistanceCharacteristic',
+                         'pullupRequired', 'pullupRecommendedValue', 'pullupNote', 'importantNotes',
+                         'authorNick', 'lastEditedByNick', 'lastEditedAt', 'updatedAt',
+                         'rating', 'ratingVotesCount', 'isUserAdded', 'connectorImageUrl'
+                       ]);
+
+      allow delete: if isSignedIn() && isValidId(sensorId);
+    }
+  }
+}
