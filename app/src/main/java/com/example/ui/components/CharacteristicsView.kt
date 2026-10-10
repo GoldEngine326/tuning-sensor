@@ -700,7 +700,7 @@ fun CharacteristicChart(
           style = Stroke(width = 1.dp.toPx())
         )
 
-        // Ścieżka wykresu
+        // Ścieżka wykresu: prosta linia łącząca punkty
         val linePath = Path()
         val screenPoints = parsedPoints.map { pt ->
           val xPos = padLeft + ((pt.x - minX) / spanX) * plotWidth
@@ -708,39 +708,11 @@ fun CharacteristicChart(
           Offset(xPos, yPos)
         }
 
-        if (!isResistance) {
-          // Dla charakterystyki napięciowej: proste linie między punktami
-          screenPoints.forEachIndexed { index, offset ->
-            if (index == 0) {
-              linePath.moveTo(offset.x, offset.y)
-            } else {
-              linePath.lineTo(offset.x, offset.y)
-            }
-          }
-        } else {
-          // Dla charakterystyki opornościowej: gładkie przejścia (nie kanciaste, ale też nie pofalowane - monotonic cubic)
-          if (screenPoints.isNotEmpty()) {
-            linePath.moveTo(screenPoints[0].x, screenPoints[0].y)
-            for (i in 0 until screenPoints.size - 1) {
-              val p0 = screenPoints[maxOf(0, i - 1)]
-              val p1 = screenPoints[i]
-              val p2 = screenPoints[i + 1]
-              val p3 = screenPoints[minOf(screenPoints.size - 1, i + 2)]
-
-              // Monotoniczne nachylenie (Catmull-Rom z ograniczeniem nienadwyżkowym)
-              val dx = (p2.x - p1.x) / 3f
-              val dy1 = (p2.y - p0.y) / 6f
-              val dy2 = (p3.y - p1.y) / 6f
-
-              val cp1 = Offset(p1.x + dx, p1.y + dy1)
-              val cp2 = Offset(p2.x - dx, p2.y - dy2)
-
-              linePath.cubicTo(
-                cp1.x, cp1.y,
-                cp2.x, cp2.y,
-                p2.x, p2.y
-              )
-            }
+        screenPoints.forEachIndexed { index, offset ->
+          if (index == 0) {
+            linePath.moveTo(offset.x, offset.y)
+          } else {
+            linePath.lineTo(offset.x, offset.y)
           }
         }
 
