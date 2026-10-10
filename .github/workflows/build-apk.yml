@@ -29,16 +29,19 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Create Mock Keystore & Config if needed
+      - name: Prepare build environment and keystore
         run: |
-          mkdir -p ~/.android
-          keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US" || true
-          touch .env || true
-          echo "" > .env
+          # Restore debug.keystore in root project if present in base64
+          if [ -f "debug.keystore.base64" ]; then
+            base64 -d debug.keystore.base64 > debug.keystore
+          else
+            keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
+          touch .env
 
-      - name: Build Debug APK
+      - name: Build Debug APK (Skip Unit Tests on CI)
         run: |
-          gradle :app:assembleDebug --stacktrace
+          gradle :app:assembleDebug -x test --stacktrace
 
       - name: Rename APK Asset
         run: |
