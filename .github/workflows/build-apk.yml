@@ -42,11 +42,12 @@ jobs:
             cp debug.keystore ~/.android/debug.keystore
           fi
           touch .env
-          echo "GEMINI_API_KEY=" > .env
+          echo "GEMINI_API_KEY=dummy" > .env
+          cp .env app/.env || true
 
       - name: Build Debug APK
         run: |
-          gradle :app:packageDebug -x test -x lint --info
+          gradle :app:assembleDebug -x test -x lint --no-configuration-cache
 
       - name: Rename APK Asset
         run: |
