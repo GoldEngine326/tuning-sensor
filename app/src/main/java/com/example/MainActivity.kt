@@ -38,6 +38,8 @@ import com.example.ui.components.GitHubUpdateDialog
 import com.example.util.GitHubReleaseInfo
 import com.example.util.GitHubUpdateManager
 import com.google.firebase.Firebase
+import com.google.firebase.FirebaseApp
+import com.google.firebase.FirebaseOptions
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
 
@@ -152,6 +154,24 @@ class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
+
+    // Gwarancja inicjalizacji FirebaseApp dla aplikacji
+    try {
+      if (FirebaseApp.getApps(this).isEmpty()) {
+        val app = FirebaseApp.initializeApp(this)
+        if (app == null) {
+          val options = FirebaseOptions.Builder()
+            .setApplicationId("1:797791659250:android:2be4f5f10488932c989c6b")
+            .setApiKey("AIzaSyBVcO4b2Li5uL13zPEFZ_gGNOE_eIPMDHc")
+            .setProjectId("gen-lang-client-0918404378")
+            .setStorageBucket("gen-lang-client-0918404378.firebasestorage.app")
+            .build()
+          FirebaseApp.initializeApp(this, options)
+        }
+      }
+    } catch (e: Exception) {
+      android.util.Log.e("MainActivity", "Błąd inicjalizacji FirebaseApp: ${e.message}", e)
+    }
 
     setContent {
       MyApplicationTheme {
