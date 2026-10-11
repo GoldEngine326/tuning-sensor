@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Tuning Sensor</string>
+    <string name="default_web_client_id" translatable="false">797791659250-dilt7pbpj7pbt90nunniovuohabdpkk2.apps.googleusercontent.com</string>
 </resources>
