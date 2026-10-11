@@ -165,15 +165,32 @@ class MainActivity : ComponentActivity() {
 fun MainRoot() {
   val context = LocalContext.current
   val scope = rememberCoroutineScope()
-  var currentUser by remember { mutableStateOf(Firebase.auth.currentUser) }
+  var currentUser by remember {
+    mutableStateOf(
+      try {
+        Firebase.auth.currentUser
+      } catch (e: Exception) {
+        null
+      }
+    )
+  }
 
   DisposableEffect(Unit) {
-    val listener = FirebaseAuth.AuthStateListener { auth ->
-      currentUser = auth.currentUser
+    var listener: FirebaseAuth.AuthStateListener? = null
+    try {
+      listener = FirebaseAuth.AuthStateListener { auth ->
+        currentUser = auth.currentUser
+      }
+      Firebase.auth.addAuthStateListener(listener)
+    } catch (e: Exception) {
+      android.util.Log.e("MainRoot", "Błąd rejestracji AuthStateListener: ${e.message}")
     }
-    Firebase.auth.addAuthStateListener(listener)
     onDispose {
-      Firebase.auth.removeAuthStateListener(listener)
+      try {
+        listener?.let { Firebase.auth.removeAuthStateListener(it) }
+      } catch (e: Exception) {
+        // ignore
+      }
     }
   }
 

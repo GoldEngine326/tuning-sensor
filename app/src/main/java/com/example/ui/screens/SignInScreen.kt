@@ -61,19 +61,24 @@ fun SignInScreen(
   // Attempt auto sign-in once when screen loads
   LaunchedEffect(Unit) {
     if (activity != null) {
-      isLoading = true
-      AuthManager.attemptAutoSignIn(
-        activity = activity,
-        credentialManager = credentialManager,
-        onAuthSuccess = {
-          isLoading = false
-          onAuthSuccess()
-        },
-        onUnauthenticated = {
-          isLoading = false
-        },
-        scope = scope
-      )
+      try {
+        isLoading = true
+        AuthManager.attemptAutoSignIn(
+          activity = activity,
+          credentialManager = credentialManager,
+          onAuthSuccess = {
+            isLoading = false
+            onAuthSuccess()
+          },
+          onUnauthenticated = {
+            isLoading = false
+          },
+          scope = scope
+        )
+      } catch (e: Exception) {
+        android.util.Log.e("SignInScreen", "Auto sign-in nie powiodło się: ${e.message}")
+        isLoading = false
+      }
     }
   }
 
