@@ -46,7 +46,7 @@ jobs:
 
       - name: Build Debug APK
         run: |
-          gradle :app:assembleDebug -x test -x lint --stacktrace
+          gradle :app:packageDebug -x test -x lint --info
 
       - name: Rename APK Asset
         run: |
