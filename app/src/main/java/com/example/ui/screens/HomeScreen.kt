@@ -87,6 +87,7 @@ fun HomeScreen(
   onComponentClick: (TuningComponent) -> Unit,
   onAddClick: () -> Unit,
   onOpenNickDialog: () -> Unit,
+  onCheckUpdate: () -> Unit = {},
   onSignOut: () -> Unit = {},
   modifier: Modifier = Modifier
 ) {
@@ -177,6 +178,23 @@ fun HomeScreen(
           }
 
           Spacer(Modifier.width(4.dp))
+
+          // Przycisk sprawdzania aktualizacji po prawej stronie obok nicku
+          IconButton(
+            onClick = onCheckUpdate,
+            modifier = Modifier
+              .size(36.dp)
+              .testTag("check_update_button")
+          ) {
+            Icon(
+              imageVector = Icons.Default.SystemUpdate,
+              contentDescription = "Sprawdź aktualizacje",
+              tint = TunerCyan,
+              modifier = Modifier.size(20.dp)
+            )
+          }
+
+          Spacer(Modifier.width(2.dp))
 
           IconButton(
             onClick = onSignOut,
