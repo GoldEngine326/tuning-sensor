@@ -65,6 +65,7 @@ import com.example.model.ComponentCategory
 import com.example.model.TuningComponent
 import com.example.ui.components.CharacteristicsView
 import com.example.ui.components.DeadTimeTablesView
+import com.example.ui.components.InjectorFlowCalculatorCard
 import com.example.ui.components.ComponentHeroImage
 import com.example.ui.components.PinoutView
 import com.example.ui.components.PullupWarningCard
@@ -517,12 +518,24 @@ fun DetailScreen(
 
       Spacer(Modifier.height(20.dp))
 
-      // 3. CHARAKTERYSTYKA DLA WTRYSKIWACZY (DEAD TIME) LUB GŁÓWNA CHARAKTERYSTYKA (NAPIĘCIOWA / DWELL / KALIBRACJA)
-      if (component.category == ComponentCategory.INJECTORS || component.deadTimeTables.isNotEmpty()) {
-        DeadTimeTablesView(
-          tables = component.deadTimeTables,
-          modifier = Modifier.testTag("detail_dead_time_tables_view")
+      // 3. WYDAJNOŚĆ WTRYSKIWACZA & KALKULATOR CIŚNIENIA DLA WTRYSKIWACZY
+      if (component.category == ComponentCategory.INJECTORS || component.flowRateCc != null) {
+        InjectorFlowCalculatorCard(
+          nominalFlowRateCc = component.flowRateCc,
+          nominalPressureBar = component.flowPressureBar,
+          modifier = Modifier.testTag("detail_injector_flow_calculator")
         )
+        Spacer(Modifier.height(20.dp))
+      }
+
+      // 4. CHARAKTERYSTYKA DLA WTRYSKIWACZY (DEAD TIME) LUB GŁÓWNA CHARAKTERYSTYKA (NAPIĘCIOWA / DWELL / KALIBRACJA)
+      if (component.category == ComponentCategory.INJECTORS || component.deadTimeTables.isNotEmpty()) {
+        if (component.deadTimeTables.isNotEmpty()) {
+          DeadTimeTablesView(
+            tables = component.deadTimeTables,
+            modifier = Modifier.testTag("detail_dead_time_tables_view")
+          )
+        }
       } else {
         CharacteristicsView(
           characteristic = component.characteristic,

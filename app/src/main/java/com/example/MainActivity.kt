@@ -77,7 +77,9 @@ class TuningViewModel(private val repository: TuningRepository) : ViewModel() {
     pullupNote: String,
     importantNotes: String,
     connectorImageUrl: String = "",
-    deadTimeTables: List<DeadTimeTable> = emptyList()
+    deadTimeTables: List<DeadTimeTable> = emptyList(),
+    flowRateCc: Double? = null,
+    flowPressureBar: Double? = null
   ): TuningComponent {
     return repository.addComponent(
       name = name,
@@ -94,7 +96,9 @@ class TuningViewModel(private val repository: TuningRepository) : ViewModel() {
       pullupNote = pullupNote,
       importantNotes = importantNotes,
       connectorImageUrl = connectorImageUrl,
-      deadTimeTables = deadTimeTables
+      deadTimeTables = deadTimeTables,
+      flowRateCc = flowRateCc,
+      flowPressureBar = flowPressureBar
     )
   }
 
@@ -114,7 +118,9 @@ class TuningViewModel(private val repository: TuningRepository) : ViewModel() {
     pullupNote: String,
     importantNotes: String,
     connectorImageUrl: String = "",
-    deadTimeTables: List<DeadTimeTable> = emptyList()
+    deadTimeTables: List<DeadTimeTable> = emptyList(),
+    flowRateCc: Double? = null,
+    flowPressureBar: Double? = null
   ): TuningComponent? {
     return repository.updateComponent(
       id = id,
@@ -132,7 +138,9 @@ class TuningViewModel(private val repository: TuningRepository) : ViewModel() {
       pullupNote = pullupNote,
       importantNotes = importantNotes,
       connectorImageUrl = connectorImageUrl,
-      deadTimeTables = deadTimeTables
+      deadTimeTables = deadTimeTables,
+      flowRateCc = flowRateCc,
+      flowPressureBar = flowPressureBar
     )
   }
 
@@ -351,7 +359,7 @@ fun TuningAppContent(
           userNick = userNick,
           existingComponent = null,
           onDismiss = { currentScreen = AppScreen.Home },
-          onSave = { name, partNumber, category, shortDesc, imgUrl, imgs, pins, char, resChar, pullupReq, pullupVal, pullupNote, notes, connImg, deadTimeTables ->
+          onSave = { name, partNumber, category, shortDesc, imgUrl, imgs, pins, char, resChar, pullupReq, pullupVal, pullupNote, notes, connImg, deadTimeTables, flowRateCc, flowPressureBar ->
             val created = viewModel.addComponent(
               name = name,
               partNumber = partNumber,
@@ -367,7 +375,9 @@ fun TuningAppContent(
               pullupNote = pullupNote,
               importantNotes = notes,
               connectorImageUrl = connImg,
-              deadTimeTables = deadTimeTables
+              deadTimeTables = deadTimeTables,
+              flowRateCc = flowRateCc,
+              flowPressureBar = flowPressureBar
             )
             android.widget.Toast.makeText(
               context,
@@ -389,7 +399,7 @@ fun TuningAppContent(
             userNick = userNick,
             existingComponent = component,
             onDismiss = { currentScreen = AppScreen.Detail(component.id) },
-            onSave = { name, partNumber, category, shortDesc, imgUrl, imgs, pins, char, resChar, pullupReq, pullupVal, pullupNote, notes, connImg, deadTimeTables ->
+            onSave = { name, partNumber, category, shortDesc, imgUrl, imgs, pins, char, resChar, pullupReq, pullupVal, pullupNote, notes, connImg, deadTimeTables, flowRateCc, flowPressureBar ->
               viewModel.updateComponent(
                 id = component.id,
                 name = name,
@@ -406,7 +416,9 @@ fun TuningAppContent(
                 pullupNote = pullupNote,
                 importantNotes = notes,
                 connectorImageUrl = connImg,
-                deadTimeTables = deadTimeTables
+                deadTimeTables = deadTimeTables,
+                flowRateCc = flowRateCc,
+                flowPressureBar = flowPressureBar
               )
               android.widget.Toast.makeText(
                 context,

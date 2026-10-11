@@ -166,7 +166,9 @@ fun AddComponentDialog(
     pullupNote: String,
     importantNotes: String,
     connectorImageUrl: String,
-    deadTimeTables: List<com.example.model.DeadTimeTable>
+    deadTimeTables: List<com.example.model.DeadTimeTable>,
+    flowRateCc: Double?,
+    flowPressureBar: Double?
   ) -> Unit,
   onDelete: (() -> Unit)? = null,
   modifier: Modifier = Modifier
@@ -431,6 +433,14 @@ fun AddComponentDialog(
     }
   }
 
+  // Wydajność wtryskiwacza i ciśnienie bazowe
+  var flowRateCcInput by remember(compKey) {
+    mutableStateOf(existingComponent?.flowRateCc?.let { if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() } ?: "")
+  }
+  var flowPressureBarInput by remember(compKey) {
+    mutableStateOf(existingComponent?.flowPressureBar?.let { if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() } ?: "3.0")
+  }
+
   var importantNotes by remember(compKey) { mutableStateOf(existingComponent?.importantNotes ?: "") }
   var errorMessage by remember(compKey) { mutableStateOf<String?>(null) }
   var showDeleteConfirmDialog by remember(compKey) { mutableStateOf(false) }
@@ -552,6 +562,14 @@ fun AddComponentDialog(
               val finalImages = imagesList.toList()
               val primaryImg = finalImages.firstOrNull() ?: ""
 
+              val parsedFlowRate = if (category == ComponentCategory.INJECTORS) {
+                flowRateCcInput.replace(",", ".").trim().toDoubleOrNull()
+              } else null
+
+              val parsedFlowPressure = if (category == ComponentCategory.INJECTORS) {
+                flowPressureBarInput.replace(",", ".").trim().toDoubleOrNull()
+              } else null
+
               onSave(
                 name,
                 partNumber,
@@ -567,7 +585,9 @@ fun AddComponentDialog(
                 pullupNote,
                 importantNotes,
                 connectorImageUrl,
-                finalDeadTimeTables
+                finalDeadTimeTables,
+                parsedFlowRate,
+                parsedFlowPressure
               )
             },
             colors = ButtonDefaults.buttonColors(containerColor = if (isEditing) TunerAmber else TuningRed),
@@ -1489,7 +1509,94 @@ fun AddComponentDialog(
 
       // 5. CHARAKTERYSTYKA DLA WTRYSKIWACZY (DEAD TIME) LUB GŁÓWNA CHARAKTERYSTYKA (NAPIĘCIOWA / DWELL)
       if (category == ComponentCategory.INJECTORS) {
-        SectionHeader(title = "5. Tabele Dead Time wtryskiwacza (Napięcie vs Czas [ms])", icon = Icons.Default.Speed)
+        SectionHeader(title = "5. Wydajność wtryskiwacza i kalkulator ciśnienia", icon = Icons.Default.Speed)
+        Spacer(Modifier.height(8.dp))
+
+        // Karta deklaracji wydajności bazowej
+        Card(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 14.dp),
+          shape = RoundedCornerShape(12.dp),
+          colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated),
+          border = androidx.compose.foundation.BorderStroke(1.dp, TunerCyan.copy(alpha = 0.5f))
+        ) {
+          Column(modifier = Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              Box(
+                modifier = Modifier
+                  .size(28.dp)
+                  .background(TunerCyan.copy(alpha = 0.15f), RoundedCornerShape(6.dp)),
+                contentAlignment = Alignment.Center
+              ) {
+                Icon(
+                  imageVector = Icons.Default.Speed,
+                  contentDescription = null,
+                  tint = TunerCyan,
+                  modifier = Modifier.size(16.dp)
+                )
+              }
+              Spacer(Modifier.width(8.dp))
+              Text(
+                text = "Wydajność bazowa wtryskiwacza",
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.5.sp,
+                color = TextPrimary
+              )
+            }
+
+            Spacer(Modifier.height(8.dp))
+            Text(
+              text = "Podaj nominalną wydajność wtryskiwacza (np. 630 cc/min) oraz ciśnienie testowe (np. 3.0 bar). W szczegółach użytkownik będzie mógł wpisać ciśnienie swojego układu, a aplikacja automatycznie przeliczy wydajność!",
+              fontSize = 11.5.sp,
+              color = TextSecondary,
+              lineHeight = 16.sp
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+              OutlinedTextField(
+                value = flowRateCcInput,
+                onValueChange = { flowRateCcInput = it },
+                label = { Text("Wydajność [cc/min]") },
+                placeholder = { Text("np. 630") },
+                modifier = Modifier.weight(1.2f),
+                colors = OutlinedTextFieldDefaults.colors(
+                  focusedTextColor = TunerCyan,
+                  unfocusedTextColor = TunerCyan,
+                  focusedBorderColor = TunerCyan,
+                  cursorColor = TunerCyan,
+                  focusedContainerColor = DarkSurface,
+                  unfocusedContainerColor = DarkSurface
+                ),
+                singleLine = true
+              )
+
+              OutlinedTextField(
+                value = flowPressureBarInput,
+                onValueChange = { flowPressureBarInput = it },
+                label = { Text("Przy ciśnieniu [bar]") },
+                placeholder = { Text("np. 3.0") },
+                modifier = Modifier.weight(1f),
+                colors = OutlinedTextFieldDefaults.colors(
+                  focusedTextColor = TunerAmber,
+                  unfocusedTextColor = TunerAmber,
+                  focusedBorderColor = TunerAmber,
+                  cursorColor = TunerAmber,
+                  focusedContainerColor = DarkSurface,
+                  unfocusedContainerColor = DarkSurface
+                ),
+                singleLine = true
+              )
+            }
+          }
+        }
+
+        SectionHeader(title = "Tabele Dead Time wtryskiwacza (Napięcie vs Czas [ms])", icon = Icons.Default.ElectricalServices)
         Spacer(Modifier.height(8.dp))
 
         Text(

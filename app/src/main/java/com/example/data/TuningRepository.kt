@@ -198,7 +198,9 @@ class TuningRepository(
     pullupNote: String,
     importantNotes: String,
     connectorImageUrl: String = "",
-    deadTimeTables: List<DeadTimeTable> = emptyList()
+    deadTimeTables: List<DeadTimeTable> = emptyList(),
+    flowRateCc: Double? = null,
+    flowPressureBar: Double? = null
   ): TuningComponent {
     val uid = requireUserId()
     val newId = "sensor_" + UUID.randomUUID().toString().replace("-", "").take(12)
@@ -240,7 +242,9 @@ class TuningRepository(
       ratingVotesCount = 1,
       userVote = 5,
       isUserAdded = true,
-      deadTimeTables = deadTimeTables
+      deadTimeTables = deadTimeTables,
+      flowRateCc = flowRateCc,
+      flowPressureBar = flowPressureBar
     )
 
     val payload = createFirestorePayload(newComp, uid, isCreate = true)
@@ -272,7 +276,9 @@ class TuningRepository(
     pullupNote: String,
     importantNotes: String,
     connectorImageUrl: String = "",
-    deadTimeTables: List<DeadTimeTable> = emptyList()
+    deadTimeTables: List<DeadTimeTable> = emptyList(),
+    flowRateCc: Double? = null,
+    flowPressureBar: Double? = null
   ): TuningComponent? {
     requireUserId()
     val existing = _components.value.find { it.id == id } ?: return null
@@ -298,7 +304,9 @@ class TuningRepository(
       importantNotes = importantNotes.trim(),
       lastEditedByNick = editorNick,
       lastEditedAtMillis = System.currentTimeMillis(),
-      deadTimeTables = deadTimeTables
+      deadTimeTables = deadTimeTables,
+      flowRateCc = flowRateCc,
+      flowPressureBar = flowPressureBar
     )
 
     _components.value = _components.value.map {
@@ -336,6 +344,13 @@ class TuningRepository(
 
     if (deadTimeTables.isNotEmpty()) {
       updatePayload["deadTimeTables"] = serializeDeadTimeTables(deadTimeTables)
+    }
+
+    if (updatedComp.flowRateCc != null) {
+      updatePayload["flowRateCc"] = updatedComp.flowRateCc
+    }
+    if (updatedComp.flowPressureBar != null) {
+      updatePayload["flowPressureBar"] = updatedComp.flowPressureBar
     }
 
     db.collection("sensors").document(id).update(updatePayload)
@@ -441,6 +456,13 @@ class TuningRepository(
 
     if (component.deadTimeTables.isNotEmpty()) {
       map["deadTimeTables"] = serializeDeadTimeTables(component.deadTimeTables)
+    }
+
+    if (component.flowRateCc != null) {
+      map["flowRateCc"] = component.flowRateCc
+    }
+    if (component.flowPressureBar != null) {
+      map["flowPressureBar"] = component.flowPressureBar
     }
 
     return map
@@ -566,7 +588,9 @@ class TuningRepository(
       ratingVotesCount = (data["ratingVotesCount"] as? Number)?.toInt() ?: 1,
       userVote = userVote,
       isUserAdded = data["isUserAdded"] as? Boolean ?: false,
-      deadTimeTables = parseDeadTimeTables(data["deadTimeTables"])
+      deadTimeTables = parseDeadTimeTables(data["deadTimeTables"]),
+      flowRateCc = (data["flowRateCc"] as? Number)?.toDouble(),
+      flowPressureBar = (data["flowPressureBar"] as? Number)?.toDouble()
     )
   }
 

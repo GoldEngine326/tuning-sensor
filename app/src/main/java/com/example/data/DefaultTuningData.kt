@@ -378,6 +378,8 @@ object DefaultTuningData {
           formulaOrNotes = ""
         ),
         pullupRequired = false,
+        flowRateCc = 630.0,
+        flowPressureBar = 3.0,
         deadTimeTables = listOf(
           DeadTimeTable(
             tableName = "3.0 bar (Diff)",

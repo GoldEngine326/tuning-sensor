@@ -98,7 +98,9 @@ data class TuningComponent(
   val userVote: Int? = null, // 1 to 5 if current user voted
   val isUserAdded: Boolean = false,
   val connectorImageUrl: String = "",
-  val deadTimeTables: List<DeadTimeTable> = emptyList()
+  val deadTimeTables: List<DeadTimeTable> = emptyList(),
+  val flowRateCc: Double? = null, // Wydajność bazowa wtryskiwacza np. 630.0 [cc/min]
+  val flowPressureBar: Double? = null // Ciśnienie bazowe dla powyższej wydajności np. 3.0 [bar]
 ) {
   fun allImages(): List<String> {
     return if (images.isNotEmpty()) images else if (imageUrl.isNotBlank()) listOf(imageUrl) else emptyList()

@@ -504,6 +504,22 @@ fun ComponentListCard(
             )
           }
 
+          // Injector flow rate badge
+          if (component.flowRateCc != null) {
+            Spacer(Modifier.width(8.dp))
+            Row(
+              verticalAlignment = Alignment.CenterVertically,
+              modifier = Modifier
+                .background(TunerCyan.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                .padding(horizontal = 5.dp, vertical = 1.dp)
+            ) {
+              Icon(Icons.Default.Speed, contentDescription = null, tint = TunerCyan, modifier = Modifier.size(11.dp))
+              Spacer(Modifier.width(3.dp))
+              val flowText = if (component.flowRateCc % 1.0 == 0.0) component.flowRateCc.toInt().toString() else component.flowRateCc.toString()
+              Text("$flowText cc", fontSize = 10.sp, color = TunerCyan, fontWeight = FontWeight.Bold)
+            }
+          }
+
           // Pullup badge if required
           if (component.pullupRequired) {
             Spacer(Modifier.width(8.dp))
