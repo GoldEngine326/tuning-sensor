@@ -232,10 +232,12 @@ fun SignInScreen(
               onAuthError = { err ->
                 isLoading = false
                 errorMessage = err
+                android.widget.Toast.makeText(context, err, android.widget.Toast.LENGTH_LONG).show()
               },
               scope = scope,
               onAuthCancelled = {
                 isLoading = false
+                errorMessage = "Logowanie anulowane lub brak autoryzacji w Google Play Services."
               }
             )
           }
