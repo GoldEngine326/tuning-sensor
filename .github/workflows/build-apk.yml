@@ -26,11 +26,10 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
 
       - name: Prepare build environment and keystore
         run: |
@@ -45,14 +44,9 @@ jobs:
           touch .env
           echo "GEMINI_API_KEY=" > .env
 
-      - name: Generate Gradle Wrapper
-        run: |
-          gradle wrapper --gradle-version 9.3.1
-          chmod +x gradlew
-
       - name: Build Debug APK
         run: |
-          ./gradlew :app:assembleDebug -x test -x lint --stacktrace
+          gradle :app:assembleDebug -x test -x lint --stacktrace
 
       - name: Rename APK Asset
         run: |
