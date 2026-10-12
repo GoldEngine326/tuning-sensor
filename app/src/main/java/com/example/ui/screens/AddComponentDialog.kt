@@ -60,6 +60,7 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Architecture
 import androidx.compose.material.icons.filled.Straighten
 import com.example.ui.components.ThrottleDimensionsCard
+import com.example.ui.components.AutoFillDatasheetCard
 import kotlin.math.hypot
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.AlertDialog
@@ -728,6 +729,57 @@ fun AddComponentDialog(
         }
         Spacer(Modifier.height(14.dp))
       }
+
+      // Asystent automatycznego zaczerpnięcia danych (AI / OCR z dokumentacji)
+      AutoFillDatasheetCard(
+        currentCategory = category,
+        onDataExtracted = { data ->
+          data.name?.let { name = it }
+          data.partNumber?.let { partNumber = it }
+          data.category?.let { cat -> category = cat }
+          data.shortDescription?.let { shortDescription = it }
+          data.flowRateCc?.let { flowRateCcInput = if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() }
+          data.flowPressureBar?.let { flowPressureBarInput = if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() }
+          if (data.deadTimeTables.isNotEmpty()) {
+            deadTimeTablesDraft.clear()
+            deadTimeTablesDraft.addAll(data.deadTimeTables)
+          }
+          if (data.calibrationPoints.isNotEmpty()) {
+            calPointsList.clear()
+            calPointsList.addAll(data.calibrationPoints)
+          }
+          data.calInputUnit?.let { tableInputUnit = it }
+          data.calOutputUnit?.let { tableOutputUnit = it }
+          data.charTitle?.let { charTitle = it }
+          data.charType?.let { charType = it }
+          if (data.resistancePoints.isNotEmpty()) {
+            resPointsList.clear()
+            resPointsList.addAll(data.resistancePoints)
+            includeResistanceChar = true
+          }
+          data.resInputUnit?.let { resTableInputUnit = it }
+          data.resOutputUnit?.let { resTableOutputUnit = it }
+          data.resCharTitle?.let { resCharTitle = it }
+          data.pullupRequired?.let { pullupRequired = it }
+          data.pullupRecommendedValue?.let { pullupValue = it }
+          data.innerDiameterMm?.let { innerDiameterInput = if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() }
+          data.outerDiameterMm?.let { outerDiameterInput = if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() }
+          data.boltSpacingWidthMm?.let { boltSpacingWidthInput = if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() }
+          data.boltSpacingHeightMm?.let { boltSpacingHeightInput = if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() }
+          data.boltDiagonal1Mm?.let { boltDiagonal1Input = if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() }
+          data.boltDiagonal2Mm?.let { boltDiagonal2Input = if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() }
+          if (data.pins.isNotEmpty()) {
+            pinsList.clear()
+            pinsList.addAll(data.pins)
+          }
+          data.importantNotes?.let {
+            if (it.isNotBlank()) {
+              importantNotes = if (importantNotes.isBlank()) it else "$importantNotes\n$it"
+            }
+          }
+        },
+        modifier = Modifier.padding(bottom = 16.dp)
+      )
 
       // 1. Podstawowe informacje
       SectionHeader(title = "1. Podstawowe informacje", icon = Icons.Default.Info)
