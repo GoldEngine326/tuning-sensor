@@ -780,6 +780,31 @@ fun AutoFillDatasheetCard(
 
           Spacer(Modifier.height(10.dp))
 
+          val customSaved = DatasheetExtractor.getCustomKeyOnly(context)
+          if (customSaved.isNotBlank()) {
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Text(
+                text = "Zapisany klucz w telefonie: ...${customSaved.takeLast(6)}",
+                fontSize = 11.sp,
+                color = TunerAmber
+              )
+              TextButton(
+                onClick = {
+                  DatasheetExtractor.clearCustomApiKey(context)
+                  customApiKeyInput = ""
+                  Toast.makeText(context, "Wyczyszczono klucz z telefonu. Aktywny jest klucz z projektu!", Toast.LENGTH_SHORT).show()
+                }
+              ) {
+                Text("Przywróć klucz Secrets", fontSize = 11.sp, color = TunerCyan)
+              }
+            }
+            Spacer(Modifier.height(6.dp))
+          }
+
           OutlinedTextField(
             value = customApiKeyInput,
             onValueChange = { customApiKeyInput = it },
@@ -799,20 +824,27 @@ fun AutoFillDatasheetCard(
         }
       },
       confirmButton = {
-        Button(
-          onClick = {
-            DatasheetExtractor.saveApiKey(context, customApiKeyInput)
-            showApiKeyDialog = false
-            Toast.makeText(context, "Zapisano klucz API! Możesz teraz odczytywać dane.", Toast.LENGTH_SHORT).show()
-          },
-          colors = ButtonDefaults.buttonColors(containerColor = TunerCyan, contentColor = Color.Black)
-        ) {
-          Text("Zapisz klucz")
+        Row {
+          Button(
+            onClick = {
+              if (customApiKeyInput.isBlank()) {
+                DatasheetExtractor.clearCustomApiKey(context)
+                Toast.makeText(context, "Używany jest domyślny klucz z panelu Secrets!", Toast.LENGTH_SHORT).show()
+              } else {
+                DatasheetExtractor.saveApiKey(context, customApiKeyInput)
+                Toast.makeText(context, "Zapisano klucz API!", Toast.LENGTH_SHORT).show()
+              }
+              showApiKeyDialog = false
+            },
+            colors = ButtonDefaults.buttonColors(containerColor = TunerCyan, contentColor = Color.Black)
+          ) {
+            Text("Zapisz klucz")
+          }
         }
       },
       dismissButton = {
         TextButton(onClick = { showApiKeyDialog = false }) {
-          Text("Anuluj", color = TextSecondary)
+          Text("Zamknij", color = TextSecondary)
         }
       },
       containerColor = DarkSurfaceElevated

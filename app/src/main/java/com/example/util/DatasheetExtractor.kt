@@ -77,6 +77,7 @@ object DatasheetExtractor {
 
   /**
    * Retrieves active Gemini API key from BuildConfig or SharedPreferences.
+   * Prioritizes valid BuildConfig key from AI Studio Secrets.
    */
   fun getApiKey(context: Context): String {
     // 1. Sprawdź najpierw klucz wbudowany z panelu Secrets w AI Studio
@@ -85,11 +86,11 @@ object DatasheetExtractor {
     } catch (_: Exception) {
       ""
     }
-    if (buildKey.isNotBlank() && buildKey != "MY_GEMINI_API_KEY") {
+    if (buildKey.isNotBlank() && buildKey != "MY_GEMINI_API_KEY" && buildKey != "null") {
       return buildKey
     }
 
-    // 2. Jeśli brak, sprawdź czy użytkownik zapisał własny klucz w SharedPreferences
+    // 2. Jeśli brak w Secrets, sprawdź czy użytkownik zapisał własny klucz w telefonie
     val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     val customKey = prefs.getString(KEY_CUSTOM_API_KEY, "")?.trim() ?: ""
     if (customKey.isNotBlank()) return customKey
@@ -98,15 +99,30 @@ object DatasheetExtractor {
   }
 
   /**
-   * Sprawdza, czy klucz API pochodzi bezpośrednio z panelu Secrets projektu w AI Studio.
+   * Zwraca opcjonalny klucz wprowadzony ręcznie w aplikacji (z SharedPreferences).
    */
-  fun isKeyConfiguredInProject(): Boolean {
-    val buildKey = try {
-      BuildConfig.GEMINI_API_KEY.trim()
+  fun getCustomKeyOnly(context: Context): String {
+    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    return prefs.getString(KEY_CUSTOM_API_KEY, "")?.trim() ?: ""
+  }
+
+  /**
+   * Zwraca klucz z panelu Secrets (BuildConfig).
+   */
+  fun getBuildConfigKey(): String {
+    return try {
+      val key = BuildConfig.GEMINI_API_KEY.trim()
+      if (key == "MY_GEMINI_API_KEY" || key == "null") "" else key
     } catch (_: Exception) {
       ""
     }
-    return buildKey.isNotBlank() && buildKey != "MY_GEMINI_API_KEY"
+  }
+
+  /**
+   * Sprawdza, czy klucz API pochodzi bezpośrednio z panelu Secrets projektu w AI Studio.
+   */
+  fun isKeyConfiguredInProject(): Boolean {
+    return getBuildConfigKey().isNotBlank()
   }
 
   /**
@@ -115,6 +131,14 @@ object DatasheetExtractor {
   fun saveApiKey(context: Context, key: String) {
     val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     prefs.edit().putString(KEY_CUSTOM_API_KEY, key.trim()).apply()
+  }
+
+  /**
+   * Usuwa ręcznie zapisany klucz z pamięci telefonu, przywracając klucz z Secrets.
+   */
+  fun clearCustomApiKey(context: Context) {
+    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    prefs.edit().remove(KEY_CUSTOM_API_KEY).apply()
   }
 
   /**
@@ -147,7 +171,7 @@ object DatasheetExtractor {
           base64Data = base64Data
         )
 
-        callGeminiApi(apiKey, requestJson)
+        callGeminiApi(context, apiKey, requestJson)
       } catch (e: Exception) {
         Log.e(TAG, "extractFromDataImage failed", e)
         Result.failure(e)
@@ -193,7 +217,7 @@ object DatasheetExtractor {
           val prompt = buildAutomotiveExtractionPrompt()
           val fullPrompt = "$prompt\n\n--- DOKUMENTACJA Z PLIKU ($fileName) ---\n$textContent"
           val requestJson = buildGeminiTextOnlyRequest(fullPrompt)
-          return@withContext callGeminiApi(apiKey, requestJson)
+          return@withContext callGeminiApi(context, apiKey, requestJson)
         }
 
         if (apiKey.isBlank()) {
@@ -217,7 +241,7 @@ object DatasheetExtractor {
           base64Data = base64Data
         )
 
-        callGeminiApi(apiKey, requestJson)
+        callGeminiApi(context, apiKey, requestJson)
       } catch (e: Exception) {
         Log.e(TAG, "extractFromFile failed", e)
         Result.failure(e)
@@ -270,7 +294,7 @@ object DatasheetExtractor {
             mimeType = "application/pdf",
             base64Data = base64Data
           )
-          return@withContext callGeminiApi(apiKey, requestJson)
+          return@withContext callGeminiApi(context, apiKey, requestJson)
         }
 
         if (contentType.contains("image/") || trimmedUrl.endsWith(".jpg", ignoreCase = true) || trimmedUrl.endsWith(".png", ignoreCase = true)) {
@@ -281,7 +305,7 @@ object DatasheetExtractor {
             mimeType = if (contentType.contains("png")) "image/png" else "image/jpeg",
             base64Data = base64Data
           )
-          return@withContext callGeminiApi(apiKey, requestJson)
+          return@withContext callGeminiApi(context, apiKey, requestJson)
         }
 
         // HTML or text webpage
@@ -291,7 +315,7 @@ object DatasheetExtractor {
 
         val fullPrompt = "$prompt\n\n--- ZAWARTOŚĆ STRONY Z LINKU ($trimmedUrl) ---\n$cleanText"
         val requestJson = buildGeminiTextOnlyRequest(fullPrompt)
-        callGeminiApi(apiKey, requestJson)
+        callGeminiApi(context, apiKey, requestJson)
       } catch (e: Exception) {
         Log.e(TAG, "extractFromUrl failed", e)
         Result.failure(e)
@@ -666,46 +690,71 @@ ZASADY:
     return root.toString()
   }
 
-  private fun callGeminiApi(apiKey: String, requestJson: String): Result<ExtractedComponentData> {
+  private fun callGeminiApi(
+    context: Context?,
+    primaryApiKey: String,
+    requestJson: String
+  ): Result<ExtractedComponentData> {
+    val buildKey = getBuildConfigKey()
+    val keysToTry = mutableListOf<String>()
+    if (primaryApiKey.isNotBlank()) keysToTry.add(primaryApiKey)
+    if (buildKey.isNotBlank() && !keysToTry.contains(buildKey)) {
+      keysToTry.add(buildKey)
+    }
+
     val modelsToTry = listOf("gemini-3.5-flash", "gemini-flash-latest", "gemini-3.8-flash")
     val mediaType = "application/json; charset=utf-8".toMediaType()
     val requestBody = requestJson.toRequestBody(mediaType)
     var lastError = "Nieznany błąd zapytania AI"
 
-    for (model in modelsToTry) {
-      val urlWithKey = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey"
-      val request = Request.Builder()
-        .url(urlWithKey)
-        .post(requestBody)
-        .build()
+    for (currentKey in keysToTry) {
+      for (model in modelsToTry) {
+        val urlWithKey = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$currentKey"
+        val request = Request.Builder()
+          .url(urlWithKey)
+          .post(requestBody)
+          .build()
 
-      try {
-        val response = httpClient.newCall(request).execute()
-        if (response.isSuccessful) {
-          val resString = response.body?.string() ?: continue
-          val parsed = parseGeminiResponse(resString)
-          if (parsed.isSuccess) {
-            return parsed
-          }
-        } else {
-          val errBody = response.body?.string() ?: ""
-          val parsedError = try {
-            JSONObject(errBody).optJSONObject("error")?.optString("message") ?: errBody
-          } catch (_: Exception) {
-            errBody
-          }
-          lastError = "Błąd ($model, kod ${response.code}): $parsedError"
-          // Jeśli model jest chwilowo przeciążony (503), ma rate-limit (429) lub nieobsługiwany (404), próbujemy kolejnego
-          if (response.code == 503 || response.code == 404 || response.code == 429) {
-            Log.w(TAG, "Model $model zwrócił ${response.code}, próba alternatywnego modelu...")
-            continue
+        try {
+          val response = httpClient.newCall(request).execute()
+          if (response.isSuccessful) {
+            val resString = response.body?.string() ?: continue
+            val parsed = parseGeminiResponse(resString)
+            if (parsed.isSuccess) {
+              // Jeśli użyto z sukcesem klucza wbudowanego, a w telefonie był zapisany inny (który zawiódł), czyścimy błędny klucz lokalny
+              if (context != null && currentKey == buildKey && currentKey != primaryApiKey) {
+                clearCustomApiKey(context)
+              }
+              return parsed
+            }
           } else {
-            return Result.failure(IllegalStateException(lastError))
+            val errBody = response.body?.string() ?: ""
+            val parsedError = try {
+              JSONObject(errBody).optJSONObject("error")?.optString("message") ?: errBody
+            } catch (_: Exception) {
+              errBody
+            }
+            lastError = "Błąd ($model, kod ${response.code}): $parsedError"
+
+            // Jeśli klucz jest niepoprawny (kod 400 z błędem klucza), natychmiast próbujemy kolejnego klucza (np. wbudowanego z Secrets)
+            if (response.code == 400 && (parsedError.contains("API key", ignoreCase = true) || parsedError.contains("API_KEY_INVALID", ignoreCase = true))) {
+              Log.w(TAG, "Klucz zwrócił błąd 400 API_KEY_INVALID, próba zapasowego klucza...")
+              break // przejdź do następnego klucza w keysToTry
+            }
+
+            // Jeśli model jest chwilowo przeciążony (503), ma rate-limit (429) lub nieobsługiwany (404), próbujemy kolejnego modelu
+            if (response.code == 503 || response.code == 404 || response.code == 429) {
+              Log.w(TAG, "Model $model zwrócił ${response.code}, próba alternatywnego modelu...")
+              continue
+            } else {
+              // Dla innych błędów spróbuj pozostałych modeli/kluczy
+              continue
+            }
           }
+        } catch (e: Exception) {
+          lastError = e.message ?: "Błąd połączenia sieciowego"
+          Log.w(TAG, "Wywołanie modelu $model nie powiodło się: $e")
         }
-      } catch (e: Exception) {
-        lastError = e.message ?: "Błąd połączenia sieciowego"
-        Log.w(TAG, "Wywołanie modelu $model nie powiodło się: $e")
       }
     }
 
