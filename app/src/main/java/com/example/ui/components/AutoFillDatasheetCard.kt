@@ -1,6 +1,7 @@
 package com.example.ui.components
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.widget.Toast
@@ -200,16 +201,45 @@ fun AutoFillDatasheetCard(
           }
         }
 
-        IconButton(
-          onClick = { showApiKeyDialog = true },
-          modifier = Modifier.size(32.dp)
-        ) {
-          Icon(
-            imageVector = Icons.Default.Key,
-            contentDescription = "Klucz API",
-            tint = if (DatasheetExtractor.hasApiKey(context)) TunerCyan else TunerAmber,
-            modifier = Modifier.size(18.dp)
-          )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          val isConfigured = DatasheetExtractor.hasApiKey(context)
+          Box(
+            modifier = Modifier
+              .padding(end = 4.dp)
+              .clip(RoundedCornerShape(12.dp))
+              .background(if (isConfigured) TunerCyan.copy(alpha = 0.15f) else TunerAmber.copy(alpha = 0.15f))
+              .border(1.dp, if (isConfigured) TunerCyan.copy(alpha = 0.5f) else TunerAmber.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+              .clickable { showApiKeyDialog = true }
+              .padding(horizontal = 8.dp, vertical = 4.dp)
+          ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              Box(
+                modifier = Modifier
+                  .size(7.dp)
+                  .clip(CircleShape)
+                  .background(if (isConfigured) TunerCyan else TunerAmber)
+              )
+              Spacer(Modifier.width(5.dp))
+              Text(
+                text = if (isConfigured) "AI aktywne" else "Klucz API",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                color = if (isConfigured) TunerCyan else TunerAmber
+              )
+            }
+          }
+
+          IconButton(
+            onClick = { showApiKeyDialog = true },
+            modifier = Modifier.size(32.dp)
+          ) {
+            Icon(
+              imageVector = Icons.Default.Key,
+              contentDescription = "Status klucza API",
+              tint = if (isConfigured) TunerCyan else TunerAmber,
+              modifier = Modifier.size(18.dp)
+            )
+          }
         }
       }
 
@@ -527,18 +557,34 @@ fun AutoFillDatasheetCard(
           colors = CardDefaults.cardColors(containerColor = TuningRed.copy(alpha = 0.15f)),
           border = BorderStroke(1.dp, TuningRed.copy(alpha = 0.5f))
         ) {
-          Row(
-            modifier = Modifier.padding(10.dp),
-            verticalAlignment = Alignment.CenterVertically
-          ) {
-            Icon(Icons.Default.Warning, contentDescription = null, tint = TuningRed, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(8.dp))
-            Column(modifier = Modifier.weight(1f)) {
-              Text("Nie udało się zaczerpnąć danych:", fontWeight = FontWeight.Bold, fontSize = 11.5.sp, color = TuningRed)
-              Text(errorMessage ?: "", fontSize = 11.sp, color = TextPrimary)
+          Column(modifier = Modifier.padding(10.dp)) {
+            Row(
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Icon(Icons.Default.Warning, contentDescription = null, tint = TuningRed, modifier = Modifier.size(20.dp))
+              Spacer(Modifier.width(8.dp))
+              Column(modifier = Modifier.weight(1f)) {
+                Text("Nie udało się zaczerpnąć danych:", fontWeight = FontWeight.Bold, fontSize = 11.5.sp, color = TuningRed)
+                Text(errorMessage ?: "", fontSize = 11.sp, color = TextPrimary)
+              }
+              IconButton(onClick = { errorMessage = null }, modifier = Modifier.size(24.dp)) {
+                Icon(Icons.Default.Close, contentDescription = "Zamknij", tint = TextMuted, modifier = Modifier.size(16.dp))
+              }
             }
-            IconButton(onClick = { errorMessage = null }, modifier = Modifier.size(24.dp)) {
-              Icon(Icons.Default.Close, contentDescription = "Zamknij", tint = TextMuted, modifier = Modifier.size(16.dp))
+
+            if (errorMessage?.contains("klucz", ignoreCase = true) == true || errorMessage?.contains("API", ignoreCase = true) == true) {
+              Spacer(Modifier.height(8.dp))
+              OutlinedButton(
+                onClick = { showApiKeyDialog = true },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(6.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = TunerCyan),
+                border = BorderStroke(1.dp, TunerCyan)
+              ) {
+                Icon(Icons.Default.Key, contentDescription = null, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Wprowadź lub pobierz darmowy klucz Gemini API", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+              }
             }
           }
         }
@@ -656,25 +702,99 @@ fun AutoFillDatasheetCard(
         Row(verticalAlignment = Alignment.CenterVertically) {
           Icon(Icons.Default.Key, contentDescription = null, tint = TunerCyan)
           Spacer(Modifier.width(8.dp))
-          Text("Klucz Gemini API")
+          Text("Klucz Google Gemini API")
         }
       },
       text = {
         Column {
+          val isFromProject = DatasheetExtractor.isKeyConfiguredInProject()
+          if (isFromProject) {
+            Card(
+              modifier = Modifier.fillMaxWidth(),
+              shape = RoundedCornerShape(8.dp),
+              colors = CardDefaults.cardColors(containerColor = TunerCyan.copy(alpha = 0.12f)),
+              border = BorderStroke(1.dp, TunerCyan.copy(alpha = 0.5f))
+            ) {
+              Row(
+                modifier = Modifier.padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+              ) {
+                Icon(Icons.Default.Check, contentDescription = null, tint = TunerCyan, modifier = Modifier.size(24.dp))
+                Spacer(Modifier.width(10.dp))
+                Column {
+                  Text(
+                    text = "Klucz z panelu Secrets jest AKTYWNY!",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    color = TunerCyan
+                  )
+                  Text(
+                    text = "Aplikacja automatycznie odczytuje zdjęcia tabel, PDF i linki bez konieczności wpisywania klucza w telefonie.",
+                    fontSize = 11.sp,
+                    color = TextPrimary,
+                    lineHeight = 14.5.sp
+                  )
+                }
+              }
+            }
+            Spacer(Modifier.height(12.dp))
+          }
+
           Text(
-            text = "Do odczytu zdjęć tabel i dokumentów PDF aplikacja używa modelu Google Gemini. Klucz możesz skonfigurować w Secrets panelu AI Studio lub wkleić poniżej:",
+            text = "Do inteligentnego odczytywania tabel, wykresów i plików PDF aplikacja używa modelu Google Gemini. Klucz jest w 100% darmowy (konto Google).",
             fontSize = 12.sp,
             color = TextSecondary,
             lineHeight = 16.sp
           )
+
           Spacer(Modifier.height(10.dp))
+
+          // Przycisk bezpośredniego otwarcia strony z kluczem
+          Button(
+            onClick = {
+              try {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/app/apikey"))
+                context.startActivity(intent)
+              } catch (_: Exception) {
+                Toast.makeText(context, "Otwórz w przeglądarce: aistudio.google.com/app/apikey", Toast.LENGTH_LONG).show()
+              }
+            },
+            colors = ButtonDefaults.buttonColors(containerColor = TunerCyan.copy(alpha = 0.2f), contentColor = TunerCyan),
+            border = BorderStroke(1.dp, TunerCyan),
+            shape = RoundedCornerShape(8.dp),
+            modifier = Modifier.fillMaxWidth()
+          ) {
+            Icon(Icons.Default.Link, contentDescription = null, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Pobierz darmowy klucz w Google AI Studio", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+          }
+
+          Spacer(Modifier.height(10.dp))
+
+          Text(
+            text = if (isFromProject) "Możesz także nadpisać klucz własnym kluczem lokalnym (opcjonalne):" else "Kroki:\n1. Kliknij przycisk powyżej\n2. Zaloguj się kontem Google i kliknij „Create API key”\n3. Wklej klucz poniżej:",
+            fontSize = 11.sp,
+            color = TextMuted,
+            lineHeight = 15.sp
+          )
+
+          Spacer(Modifier.height(10.dp))
+
           OutlinedTextField(
             value = customApiKeyInput,
             onValueChange = { customApiKeyInput = it },
-            label = { Text("Klucz API (AI Studio / Gemini)") },
-            placeholder = { Text("AIzaSy...") },
+            label = { Text("Klucz API (AIzaSy...)") },
+            placeholder = { Text(if (isFromProject) "Aktywny klucz z Secrets (wklej by zmienić)" else "Wklej tutaj klucz") },
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+              focusedTextColor = TextPrimary,
+              unfocusedTextColor = TextPrimary,
+              focusedBorderColor = TunerCyan,
+              unfocusedBorderColor = ThemeBorderStroke,
+              focusedContainerColor = DarkSurface,
+              unfocusedContainerColor = DarkSurface
+            )
           )
         }
       },
@@ -683,7 +803,7 @@ fun AutoFillDatasheetCard(
           onClick = {
             DatasheetExtractor.saveApiKey(context, customApiKeyInput)
             showApiKeyDialog = false
-            Toast.makeText(context, "Zapisano klucz API!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Zapisano klucz API! Możesz teraz odczytywać dane.", Toast.LENGTH_SHORT).show()
           },
           colors = ButtonDefaults.buttonColors(containerColor = TunerCyan, contentColor = Color.Black)
         ) {

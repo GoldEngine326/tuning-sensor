@@ -79,10 +79,7 @@ object DatasheetExtractor {
    * Retrieves active Gemini API key from BuildConfig or SharedPreferences.
    */
   fun getApiKey(context: Context): String {
-    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    val customKey = prefs.getString(KEY_CUSTOM_API_KEY, "")?.trim() ?: ""
-    if (customKey.isNotBlank()) return customKey
-
+    // 1. Sprawdź najpierw klucz wbudowany z panelu Secrets w AI Studio
     val buildKey = try {
       BuildConfig.GEMINI_API_KEY.trim()
     } catch (_: Exception) {
@@ -91,7 +88,25 @@ object DatasheetExtractor {
     if (buildKey.isNotBlank() && buildKey != "MY_GEMINI_API_KEY") {
       return buildKey
     }
+
+    // 2. Jeśli brak, sprawdź czy użytkownik zapisał własny klucz w SharedPreferences
+    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    val customKey = prefs.getString(KEY_CUSTOM_API_KEY, "")?.trim() ?: ""
+    if (customKey.isNotBlank()) return customKey
+
     return ""
+  }
+
+  /**
+   * Sprawdza, czy klucz API pochodzi bezpośrednio z panelu Secrets projektu w AI Studio.
+   */
+  fun isKeyConfiguredInProject(): Boolean {
+    val buildKey = try {
+      BuildConfig.GEMINI_API_KEY.trim()
+    } catch (_: Exception) {
+      ""
+    }
+    return buildKey.isNotBlank() && buildKey != "MY_GEMINI_API_KEY"
   }
 
   /**
@@ -103,7 +118,7 @@ object DatasheetExtractor {
   }
 
   /**
-   * Checks if an API key is available.
+   * Checks if an API key is available (either from Secrets or entered manually).
    */
   fun hasApiKey(context: Context): Boolean {
     return getApiKey(context).isNotBlank()
@@ -118,7 +133,7 @@ object DatasheetExtractor {
         val apiKey = getApiKey(context)
         if (apiKey.isBlank()) {
           return@withContext Result.failure(
-            IllegalStateException("Brak klucza Gemini API. Podaj klucz API w ustawieniach lub panelu Secrets.")
+            IllegalStateException("Do automatycznego odczytu ze zdjęć tabel przez AI wymagany jest darmowy klucz Gemini API. Aby działało to w 100% samo bez wpisywania w telefonie, dodaj klucz GEMINI_API_KEY w panelu Secrets w AI Studio, albo wprowadź go raz w aplikacji (żółta ikona klucza).")
           )
         }
 
@@ -146,34 +161,48 @@ object DatasheetExtractor {
     withContext(Dispatchers.IO) {
       try {
         val apiKey = getApiKey(context)
-        if (apiKey.isBlank()) {
-          return@withContext Result.failure(
-            IllegalStateException("Brak klucza Gemini API. Podaj klucz API w ustawieniach lub panelu Secrets.")
-          )
-        }
-
         val contentResolver = context.contentResolver
         val mimeType = contentResolver.getType(fileUri) ?: when {
           fileName.endsWith(".pdf", ignoreCase = true) -> "application/pdf"
           fileName.endsWith(".csv", ignoreCase = true) -> "text/csv"
           fileName.endsWith(".txt", ignoreCase = true) -> "text/plain"
+          fileName.endsWith(".tsv", ignoreCase = true) -> "text/tab-separated-values"
           fileName.endsWith(".json", ignoreCase = true) -> "application/json"
           fileName.endsWith(".png", ignoreCase = true) -> "image/png"
           fileName.endsWith(".jpg", ignoreCase = true) || fileName.endsWith(".jpeg", ignoreCase = true) -> "image/jpeg"
           else -> "application/octet-stream"
         }
 
-        val prompt = buildAutomotiveExtractionPrompt()
-
-        if (mimeType.startsWith("text/") || mimeType == "application/json" || fileName.endsWith(".csv", ignoreCase = true) || fileName.endsWith(".txt", ignoreCase = true)) {
-          // Read text content directly
+        // Jeśli to plik tekstowy lub CSV, spróbuj najpierw odczytać zawartość i sparsować lokalnie (bez konieczności użycia API key)
+        if (mimeType.startsWith("text/") || mimeType == "application/json" || fileName.endsWith(".csv", ignoreCase = true) || fileName.endsWith(".txt", ignoreCase = true) || fileName.endsWith(".tsv", ignoreCase = true)) {
           val textContent = contentResolver.openInputStream(fileUri)?.bufferedReader()?.use { it.readText() }
             ?: return@withContext Result.failure(IllegalArgumentException("Nie udało się odczytać zawartości pliku tekstowego."))
 
+          // Sprawdź czy możemy odczytać dane z tabeli lokalnie na urządzeniu
+          val localResult = parseTextTableLocally(textContent, fileName)
+          if (localResult != null && (apiKey.isBlank() || localResult.deadTimeTables.isNotEmpty() || localResult.calibrationPoints.isNotEmpty())) {
+            return@withContext Result.success(localResult)
+          }
+
+          if (apiKey.isBlank()) {
+            return@withContext Result.failure(
+              IllegalStateException("Do zaawansowanej analizy dokumentu tekstowego przez AI wymagany jest klucz Gemini API. Dodaj GEMINI_API_KEY w panelu Secrets w AI Studio lub podaj go w ikonie klucza.")
+            )
+          }
+
+          val prompt = buildAutomotiveExtractionPrompt()
           val fullPrompt = "$prompt\n\n--- DOKUMENTACJA Z PLIKU ($fileName) ---\n$textContent"
           val requestJson = buildGeminiTextOnlyRequest(fullPrompt)
           return@withContext callGeminiApi(apiKey, requestJson)
         }
+
+        if (apiKey.isBlank()) {
+          return@withContext Result.failure(
+            IllegalStateException("Do automatycznego odczytu zdjęć tabel i plików PDF przez sztuczną inteligencję wymagany jest klucz Gemini API. Aby działało to w 100% samo bez wpisywania w telefonie, dodaj klucz GEMINI_API_KEY w panelu Secrets w AI Studio lub podaj go raz w ikonie klucza.")
+          )
+        }
+
+        val prompt = buildAutomotiveExtractionPrompt()
 
         // For binary files (PDF or images), encode to Base64
         val bytes = contentResolver.openInputStream(fileUri)?.use { it.readBytes() }
@@ -408,6 +437,108 @@ object DatasheetExtractor {
     }
   }
 
+  /**
+   * Lokalne parsowanie tabel z plików CSV / TXT / TSV bez konieczności używania klucza API.
+   */
+  fun parseTextTableLocally(textContent: String, fileName: String): ExtractedComponentData? {
+    val lines = textContent.lines().map { it.trim() }.filter { it.isNotBlank() }
+    if (lines.isEmpty()) return null
+
+    val dtPoints = mutableListOf<DeadTimePointDraft>()
+    val calPoints = mutableListOf<CalPointDraft>()
+    val resPoints = mutableListOf<CalPointDraft>()
+    val pinsList = mutableListOf<PinDraft>()
+
+    for (line in lines) {
+      // Wykrywanie definicji pinów, np. "Pin 1: GND - Masa", "1 - Sygnał MAP"
+      val pinMatch = Regex("""^(?:Pin\s*)?(\d+)[\s:\-–—]+([^\-,:;]+)(?:[\-–—:;](.+))?""", RegexOption.IGNORE_CASE).find(line)
+      if (pinMatch != null && !line.matches(Regex("""^[\d.,\s\t;|\-]+$"""))) {
+        val pinNum = pinMatch.groupValues[1]
+        val pinName = pinMatch.groupValues[2].trim()
+        val pinDesc = pinMatch.groupValues.getOrNull(3)?.trim() ?: ""
+        val pinType = when {
+          pinName.contains("gnd", ignoreCase = true) || pinName.contains("masa", ignoreCase = true) ->
+            if (pinName.contains("sensor", ignoreCase = true)) PinType.SENSOR_GND else PinType.GROUND
+          pinName.contains("5v", ignoreCase = true) || pinName.contains("vref", ignoreCase = true) -> PinType.VREF
+          pinName.contains("12v", ignoreCase = true) || pinName.contains("power", ignoreCase = true) || pinName.contains("zasil", ignoreCase = true) -> PinType.POWER
+          pinName.contains("tps", ignoreCase = true) -> PinType.TPS
+          pinName.contains("inj", ignoreCase = true) || pinName.contains("wtrysk", ignoreCase = true) -> PinType.INJECTOR
+          pinName.contains("motor", ignoreCase = true) || pinName.contains("silnik", ignoreCase = true) -> PinType.MOTOR
+          pinName.contains("out", ignoreCase = true) || pinName.contains("sygnał wy", ignoreCase = true) -> PinType.SIGNAL_OUT
+          pinName.contains("in", ignoreCase = true) || pinName.contains("sygnał we", ignoreCase = true) -> PinType.SIGNAL_IN
+          else -> PinType.OTHER
+        }
+        pinsList.add(
+          PinDraft(
+            pinNumber = pinNum,
+            name = pinName,
+            description = pinDesc,
+            type = pinType,
+            connectorName = "Wtyczka A"
+          )
+        )
+        continue
+      }
+
+      // Wykrywanie par liczb w wierszach tabeli (rozdzielonych średnikiem, przecinkiem, tabulatorem lub spacją)
+      val cleanLine = line.replace(",", ".")
+      val tokens = cleanLine.split(Regex("""[;\t\s|]+""")).filter { it.isNotBlank() }
+      if (tokens.size >= 2) {
+        val v1 = tokens[0].toDoubleOrNull()
+        val v2 = tokens[1].toDoubleOrNull()
+        if (v1 != null && v2 != null) {
+          if (v1 in 6.0..19.0 && v2 in 0.1..8.0) {
+            // Napięcie (V) vs Czas martwy (ms)
+            dtPoints.add(DeadTimePointDraft(voltage = v1.toString(), timeMs = v2.toString()))
+          } else if (v1 in -50.0..160.0 && v2 in 30.0..100000.0) {
+            // Temperatura (°C) vs Rezystancja (Ω) dla czujników NTC
+            resPoints.add(CalPointDraft(inVal = v1.toString(), inUnit = "°C", outVal = v2.toString(), outUnit = "Ω"))
+          } else if (v2 in 0.0..5.5 && v1 > 0.0) {
+            // Wartość wejściowa (kPa / bar) vs Napięcie wyjściowe (V)
+            val unit = if (v1 > 15.0) "kPa" else "bar"
+            calPoints.add(CalPointDraft(inVal = v1.toString(), inUnit = unit, outVal = v2.toString(), outUnit = "V"))
+          }
+        }
+      }
+    }
+
+    if (dtPoints.isEmpty() && calPoints.isEmpty() && resPoints.isEmpty() && pinsList.isEmpty()) {
+      return null
+    }
+
+    val inferredCategory = when {
+      dtPoints.isNotEmpty() -> ComponentCategory.INJECTORS
+      resPoints.isNotEmpty() -> ComponentCategory.TEMP_SENSOR
+      calPoints.isNotEmpty() -> ComponentCategory.MAP_SENSOR
+      pinsList.size >= 4 -> ComponentCategory.THROTTLE
+      else -> null
+    }
+
+    val baseName = fileName.substringBeforeLast(".").replace("_", " ").replace("-", " ")
+    val bullets = mutableListOf<String>()
+    if (dtPoints.isNotEmpty()) bullets.add("✔ Odczytano lokalnie tabelę Dead Time (${dtPoints.size} punktów)")
+    if (calPoints.isNotEmpty()) bullets.add("✔ Odczytano lokalnie kalibrację ciśnienia (${calPoints.size} punktów)")
+    if (resPoints.isNotEmpty()) bullets.add("✔ Odczytano lokalnie rezystancję NTC (${resPoints.size} punktów)")
+    if (pinsList.isNotEmpty()) bullets.add("✔ Wykryto pinout (${pinsList.size} pinów)")
+
+    return ExtractedComponentData(
+      name = baseName.ifBlank { null },
+      category = inferredCategory,
+      shortDescription = "Dane odczytane lokalnie na urządzeniu z pliku $fileName",
+      deadTimeTables = if (dtPoints.isNotEmpty()) listOf(
+        DeadTimeTableDraft(
+          tableName = "Tabela z pliku $fileName",
+          points = androidx.compose.runtime.mutableStateListOf<DeadTimePointDraft>().apply { addAll(dtPoints) }
+        )
+      ) else emptyList(),
+      calibrationPoints = calPoints,
+      resistancePoints = resPoints,
+      includeResistanceChar = resPoints.isNotEmpty(),
+      pins = pinsList,
+      summaryBullets = bullets
+    )
+  }
+
   // --- Internal Gemini helpers ---
 
   private fun buildAutomotiveExtractionPrompt(): String {
@@ -536,28 +667,49 @@ ZASADY:
   }
 
   private fun callGeminiApi(apiKey: String, requestJson: String): Result<ExtractedComponentData> {
-    val urlWithKey = "$GEMINI_API_URL?key=$apiKey"
+    val modelsToTry = listOf("gemini-3.5-flash", "gemini-flash-latest", "gemini-3.8-flash")
     val mediaType = "application/json; charset=utf-8".toMediaType()
     val requestBody = requestJson.toRequestBody(mediaType)
+    var lastError = "Nieznany błąd zapytania AI"
 
-    val request = Request.Builder()
-      .url(urlWithKey)
-      .post(requestBody)
-      .build()
+    for (model in modelsToTry) {
+      val urlWithKey = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey"
+      val request = Request.Builder()
+        .url(urlWithKey)
+        .post(requestBody)
+        .build()
 
-    val response = httpClient.newCall(request).execute()
-    if (!response.isSuccessful) {
-      val errBody = response.body?.string() ?: ""
-      val parsedError = try {
-        JSONObject(errBody).optJSONObject("error")?.optString("message") ?: errBody
-      } catch (_: Exception) {
-        errBody
+      try {
+        val response = httpClient.newCall(request).execute()
+        if (response.isSuccessful) {
+          val resString = response.body?.string() ?: continue
+          val parsed = parseGeminiResponse(resString)
+          if (parsed.isSuccess) {
+            return parsed
+          }
+        } else {
+          val errBody = response.body?.string() ?: ""
+          val parsedError = try {
+            JSONObject(errBody).optJSONObject("error")?.optString("message") ?: errBody
+          } catch (_: Exception) {
+            errBody
+          }
+          lastError = "Błąd ($model, kod ${response.code}): $parsedError"
+          // Jeśli model jest chwilowo przeciążony (503), ma rate-limit (429) lub nieobsługiwany (404), próbujemy kolejnego
+          if (response.code == 503 || response.code == 404 || response.code == 429) {
+            Log.w(TAG, "Model $model zwrócił ${response.code}, próba alternatywnego modelu...")
+            continue
+          } else {
+            return Result.failure(IllegalStateException(lastError))
+          }
+        }
+      } catch (e: Exception) {
+        lastError = e.message ?: "Błąd połączenia sieciowego"
+        Log.w(TAG, "Wywołanie modelu $model nie powiodło się: $e")
       }
-      return Result.failure(IllegalStateException("Błąd Gemini API (${response.code}): $parsedError"))
     }
 
-    val resString = response.body?.string() ?: return Result.failure(IllegalStateException("Pusta odpowiedź z Gemini API"))
-    return parseGeminiResponse(resString)
+    return Result.failure(IllegalStateException(lastError))
   }
 
   private fun parseGeminiResponse(jsonResponseString: String): Result<ExtractedComponentData> {
