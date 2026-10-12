@@ -551,15 +551,15 @@ fun DetailScreen(
             modifier = Modifier.testTag("detail_dead_time_tables_view")
           )
         }
-      } else {
+      } else if (component.category != ComponentCategory.THROTTLE && component.characteristic.points.isNotEmpty()) {
         CharacteristicsView(
           characteristic = component.characteristic,
           modifier = Modifier.testTag("detail_characteristics_view")
         )
       }
 
-      // 4. CHARAKTERYSTYKA OPORNOŚCIOWA DLA CZUJNIKÓW TEMPERATURY (REZYSTANCJA NTC VS TEMPERATURA)
-      if (component.category != ComponentCategory.INJECTORS && component.resistanceCharacteristic != null) {
+      // 5. CHARAKTERYSTYKA OPORNOŚCIOWA DLA CZUJNIKÓW TEMPERATURY (REZYSTANCJA NTC VS TEMPERATURA)
+      if (component.category != ComponentCategory.INJECTORS && component.category != ComponentCategory.THROTTLE && component.resistanceCharacteristic != null) {
         Spacer(Modifier.height(20.dp))
         CharacteristicsView(
           characteristic = component.resistanceCharacteristic,

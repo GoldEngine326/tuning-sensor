@@ -534,18 +534,12 @@ object DefaultTuningData {
           )
         ),
         characteristic = CharacteristicInfo(
-          type = CharType.TPS_CALIBRATION,
-          title = "Kalibracja potencjometrów TPS1 i TPS2",
-          inputLabel = "Kąt otwarcia (%)",
-          outputLabel = "Napięcie TPS 1 (V)",
-          points = listOf(
-            CalibrationPoint("0", "%", "0.50", "V"),
-            CalibrationPoint("25", "%", "1.50", "V"),
-            CalibrationPoint("50", "%", "2.50", "V"),
-            CalibrationPoint("75", "%", "3.50", "V"),
-            CalibrationPoint("100", "%", "4.50", "V")
-          ),
-          formulaOrNotes = "TPS1: rośnie od 0.5V do 4.5V. TPS2: maleje odwrotnie od 4.5V do 0.5V (suma sygnałów zawsze ~5.0V)."
+          type = CharType.OTHER,
+          title = "Przepustnica DBW",
+          inputLabel = "",
+          outputLabel = "",
+          points = emptyList(),
+          formulaOrNotes = ""
         ),
         pullupRequired = false,
         importantNotes = "• Średnica gardzieli (wewnętrzna): 68.0 mm.\n• Średnica zewnętrzna (dolot): 76.0 mm (standard 3 cale pod łącznik silikonowy).\n• Rozstaw śrub montażowych: 60 × 60 mm (kwadrat), przekątna 84.8 mm.\n• Sterowanie: Wymaga wyjścia DBW z mostkiem H (np. EMU Black piny G20/G21).\n• Bezpieczeństwo: Zawsze podłączaj oba kanały TPS (TPS1 i TPS2) dla redundancji.",

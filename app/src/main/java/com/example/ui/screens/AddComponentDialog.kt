@@ -305,9 +305,9 @@ fun AddComponentDialog(
       } else {
         addAll(
           listOf(
-            PinDraft(pinNumber = "Pin 1", name = "Masa GND", description = "Masa sensoryczna z ECU", wireColor = "Brązowy", type = PinType.SENSOR_GND, connectorName = "Wtyczka A"),
-            PinDraft(pinNumber = "Pin 2", name = "Zasilanie +5V", description = "Stabilizowane napięcie referencyjne VREF", wireColor = "Czerwony", type = PinType.VREF, connectorName = "Wtyczka A"),
-            PinDraft(pinNumber = "Pin 3", name = "Sygnał wyjściowy", description = "Napięcie analogowe 0-5V", wireColor = "Biały", type = PinType.SIGNAL_OUT, connectorName = "Wtyczka A")
+            PinDraft(pinNumber = "1", name = "", description = "", wireColor = "", type = PinType.OTHER, connectorName = "Wtyczka A"),
+            PinDraft(pinNumber = "2", name = "", description = "", wireColor = "", type = PinType.OTHER, connectorName = "Wtyczka A"),
+            PinDraft(pinNumber = "3", name = "", description = "", wireColor = "", type = PinType.OTHER, connectorName = "Wtyczka A")
           )
         )
       }
@@ -527,32 +527,49 @@ fun AddComponentDialog(
               }
               val finalPins = pinsList.mapIndexed { idx, p ->
                 PinInfo(
-                  pinNumber = p.pinNumber.ifBlank { "Pin ${idx + 1}" },
-                  name = p.name.ifBlank { "Sygnał ${idx + 1}" },
-                  description = p.description,
+                  pinNumber = p.pinNumber.trim().ifBlank { "${idx + 1}" },
+                  name = p.name.trim(),
+                  description = p.description.trim(),
                   wireColor = p.wireColor,
                   type = p.type,
                   connectorName = p.connectorName.ifBlank { "Wtyczka A" }
                 )
               }
-              val finalPoints = calPointsList.map {
-                CalibrationPoint(
-                  inputValue = it.inVal.trim(),
-                  inputUnit = tableInputUnit.trim(),
-                  outputValue = it.outVal.trim(),
-                  outputUnit = tableOutputUnit.trim()
+              val finalPoints = if (category == ComponentCategory.THROTTLE) {
+                emptyList()
+              } else {
+                calPointsList.map {
+                  CalibrationPoint(
+                    inputValue = it.inVal.trim(),
+                    inputUnit = tableInputUnit.trim(),
+                    outputValue = it.outVal.trim(),
+                    outputUnit = tableOutputUnit.trim()
+                  )
+                }
+              }
+              val finalCharacteristic = if (category == ComponentCategory.THROTTLE) {
+                CharacteristicInfo(
+                  type = CharType.OTHER,
+                  title = "Przepustnica",
+                  inputLabel = "",
+                  outputLabel = "",
+                  points = emptyList(),
+                  formulaOrNotes = ""
+                )
+              } else {
+                CharacteristicInfo(
+                  type = charType,
+                  title = charTitle.ifBlank { "Charakterystyka" },
+                  inputLabel = charInputLabel.ifBlank { "Wejście ($tableInputUnit)" },
+                  outputLabel = charOutputLabel.ifBlank { "Wyjście ($tableOutputUnit)" },
+                  points = finalPoints,
+                  formulaOrNotes = charNotes
                 )
               }
-              val finalCharacteristic = CharacteristicInfo(
-                type = charType,
-                title = charTitle.ifBlank { "Charakterystyka" },
-                inputLabel = charInputLabel.ifBlank { "Wejście ($tableInputUnit)" },
-                outputLabel = charOutputLabel.ifBlank { "Wyjście ($tableOutputUnit)" },
-                points = finalPoints,
-                formulaOrNotes = charNotes
-              )
 
-              val finalResistanceChar = if (includeResistanceChar) {
+              val finalResistanceChar = if (category == ComponentCategory.THROTTLE) {
+                null
+              } else if (includeResistanceChar) {
                 CharacteristicInfo(
                   type = CharType.RESISTANCE_TEMP,
                   title = resCharTitle.ifBlank { "Charakterystyka opornościowa NTC" },
@@ -769,17 +786,21 @@ fun AddComponentDialog(
                   includeResistanceChar = true
                 }
                 if (cat == ComponentCategory.THROTTLE) {
-                  if (pinsList.size == 3 && pinsList[0].description.contains("Masa sensoryczna", ignoreCase = true)) {
+                  pullupRequired = false
+                  includeResistanceChar = false
+                  if (pinsList.size == 3 && pinsList.all { it.name.isBlank() && it.description.isBlank() }) {
                     pinsList.clear()
                     pinsList.addAll(
-                      listOf(
-                        PinDraft(pinNumber = "Pin 1", name = "Silnik Motor +", description = "Sterowanie silnikiem przepustnicy (H-Bridge A)", wireColor = "Żółty", type = PinType.MOTOR, connectorName = "Wtyczka A"),
-                        PinDraft(pinNumber = "Pin 2", name = "Silnik Motor -", description = "Sterowanie silnikiem przepustnicy (H-Bridge B)", wireColor = "Niebieski", type = PinType.MOTOR, connectorName = "Wtyczka A"),
-                        PinDraft(pinNumber = "Pin 3", name = "Sensor GND", description = "Masa czujników położenia TPS z ECU", wireColor = "Brązowy", type = PinType.SENSOR_GND, connectorName = "Wtyczka A"),
-                        PinDraft(pinNumber = "Pin 4", name = "TPS 1 Sygnał", description = "Główny potencjometr kąta otwarcia 0.5V - 4.5V", wireColor = "Biały", type = PinType.TPS, connectorName = "Wtyczka A"),
-                        PinDraft(pinNumber = "Pin 5", name = "+5V VREF", description = "Zasilanie referencyjne czujników z ECU", wireColor = "Czerwony", type = PinType.VREF, connectorName = "Wtyczka A"),
-                        PinDraft(pinNumber = "Pin 6", name = "TPS 2 Sygnał", description = "Drugi potencjometr redundantny kąta otwarcia 4.5V - 0.5V", wireColor = "Zielony", type = PinType.TPS, connectorName = "Wtyczka A")
-                      )
+                      (1..6).map { num ->
+                        PinDraft(
+                          pinNumber = "$num",
+                          name = "",
+                          description = "",
+                          wireColor = "",
+                          type = PinType.OTHER,
+                          connectorName = "Wtyczka A"
+                        )
+                      }
                     )
                   }
                 }
@@ -1271,7 +1292,7 @@ fun AddComponentDialog(
             connectorsList.add(newConnectorName)
             pinsList.add(
               PinDraft(
-                pinNumber = "Pin 1",
+                pinNumber = "1",
                 name = "",
                 description = "",
                 wireColor = "",
@@ -1555,7 +1576,7 @@ fun AddComponentDialog(
                 }
                 val nextNum = if (existingNumbers.isEmpty()) 1 else (existingNumbers.maxOrNull() ?: 0) + 1
                 val newPin = PinDraft(
-                  pinNumber = "Pin $nextNum",
+                  pinNumber = "$nextNum",
                   name = "",
                   description = "",
                   wireColor = "",
@@ -2101,7 +2122,7 @@ fun AddComponentDialog(
           Spacer(Modifier.width(6.dp))
           Text("Dodaj kolejną tabelę ciśnienia (Dead Time)", fontWeight = FontWeight.Bold, fontSize = 12.sp)
         }
-      } else {
+      } else if (category != ComponentCategory.THROTTLE) {
         // Standardowa sekcja 5 dla pozostałych kategorii
         SectionHeader(title = "5. Główna charakterystyka (Napięciowa / Dwell)", icon = Icons.Default.ShowChart)
         Spacer(Modifier.height(8.dp))
@@ -2274,18 +2295,18 @@ fun AddComponentDialog(
         )
       }
 
-      Spacer(Modifier.height(20.dp))
-
       // 6. CHARAKTERYSTYKA OPORNOŚCIOWA DLA CZUJNIKÓW TEMPERATURY (NTC)
-      SectionHeader(title = "6. Charakterystyka opornościowa (Dla czujników temp. NTC)", icon = Icons.Default.Thermostat)
-      Spacer(Modifier.height(8.dp))
+      if (category != ComponentCategory.THROTTLE && category != ComponentCategory.INJECTORS) {
+        Spacer(Modifier.height(20.dp))
+        SectionHeader(title = "6. Charakterystyka opornościowa (Dla czujników temp. NTC)", icon = Icons.Default.Thermostat)
+        Spacer(Modifier.height(8.dp))
 
-      Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated),
-        border = androidx.compose.foundation.BorderStroke(1.dp, BorderStroke)
-      ) {
+        Card(
+          modifier = Modifier.fillMaxWidth(),
+          shape = RoundedCornerShape(12.dp),
+          colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated),
+          border = androidx.compose.foundation.BorderStroke(1.dp, BorderStroke)
+        ) {
         Column(modifier = Modifier.padding(14.dp)) {
           Row(
             modifier = Modifier.fillMaxWidth(),
@@ -2443,11 +2464,13 @@ fun AddComponentDialog(
           }
         }
       }
+      }
 
       Spacer(Modifier.height(20.dp))
 
-      // 7. Ważne informacje tunera
-      SectionHeader(title = "7. Ważne informacje i ostrzeżenia", icon = Icons.Default.Info)
+      // Ważne informacje tunera
+      val notesSectionNum = if (category == ComponentCategory.THROTTLE) "6" else "7"
+      SectionHeader(title = "$notesSectionNum. Ważne informacje i ostrzeżenia", icon = Icons.Default.Info)
       Spacer(Modifier.height(8.dp))
 
       OutlinedTextField(
