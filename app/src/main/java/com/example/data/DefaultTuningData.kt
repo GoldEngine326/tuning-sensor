@@ -416,6 +416,142 @@ object DefaultTuningData {
         authorNick = "TurboSpec_PL",
         rating = 5.0f,
         ratingVotesCount = 28
+      ),
+
+      // 8. Czujnik ciśnienia paliwa Bosch 0-10 bar
+      TuningComponent(
+        id = "bosch_fuel_press_10bar",
+        name = "Czujnik ciśnienia paliwa Bosch 0-10 bar",
+        partNumber = "0 261 230 238 / 0261230238",
+        category = ComponentCategory.FUEL_PRESSURE,
+        shortDescription = "Precyzyjny czujnik ciśnienia paliwa i cieczy Bosch o zakresie 0-10 bar względne. Gwint M10x1 / adapter na 1/8 NPT lub AN-4. Sygnał analogowy 0.5V - 4.5V do sterowników EMU, Ecumaster, MaxxECU.",
+        imageUrl = "https://images.unsplash.com/photo-1580273916550-e323be2ae537?auto=format&fit=crop&w=800&q=80",
+        vectorIllustrationKey = "map_3b",
+        pinout = listOf(
+          PinInfo(
+            pinNumber = "Pin 1",
+            name = "Sensor GND (Masa)",
+            description = "Masa sensoryczna z ECU (nie łączyć z masą silnika)",
+            wireColor = "Czarny",
+            type = PinType.SENSOR_GND
+          ),
+          PinInfo(
+            pinNumber = "Pin 2",
+            name = "Sygnał ciśnienia 0.5 - 4.5V",
+            description = "Wyjście napięciowe analogowe podłączane do wejścia Analog In w ECU",
+            wireColor = "Biały",
+            type = PinType.SIGNAL_OUT
+          ),
+          PinInfo(
+            pinNumber = "Pin 3",
+            name = "+5V VREF (Zasilanie)",
+            description = "Stabilizowane napięcie referencyjne +5V z ECU (nie podłączać +12V!)",
+            wireColor = "Czerwony",
+            type = PinType.VREF
+          )
+        ),
+        characteristic = CharacteristicInfo(
+          type = CharType.VOLTAGE_PRESSURE,
+          title = "Skalowanie ciśnienia paliwa Bosch 0-10 bar",
+          inputLabel = "Napięcie (V)",
+          outputLabel = "Ciśnienie (bar)",
+          points = listOf(
+            CalibrationPoint("0.50", "V", "0.00", "bar"),
+            CalibrationPoint("0.90", "V", "1.00", "bar"),
+            CalibrationPoint("1.30", "V", "2.00", "bar"),
+            CalibrationPoint("1.70", "V", "3.00", "bar"),
+            CalibrationPoint("2.10", "V", "4.00", "bar"),
+            CalibrationPoint("2.50", "V", "5.00", "bar"),
+            CalibrationPoint("3.30", "V", "7.00", "bar"),
+            CalibrationPoint("4.50", "V", "10.00", "bar")
+          ),
+          formulaOrNotes = "Wzór: Ciśnienie [bar] = 2.5 × (Napięcie [V] - 0.5)"
+        ),
+        pullupRequired = false,
+        importantNotes = "• Zakres pomiarowy: 0 - 10 bar (względne).\n• Napięcie zasilania: wyłącznie stabilizowane +5V VREF z ECU.\n• Wzór kalibracji: 0.5V = 0.0 bar, 4.5V = 10.0 bar (nachylenie: 2.5 bar/V).\n• Zabezpieczenie silnika: W EMU skonfiguruj 'Fuel Pressure Protection' (odcięcie doładowania w przypadku spadku ciśnienia paliwa).",
+        authorNick = "Motorsport_PL",
+        rating = 5.0f,
+        ratingVotesCount = 14
+      ),
+
+      // 9. Przepustnica Bosch 68mm DBW (Drive-by-Wire)
+      TuningComponent(
+        id = "bosch_throttle_68mm_dbw",
+        name = "Przepustnica Bosch 68mm DBW (Drive-by-Wire)",
+        partNumber = "0 280 750 156 / 0280750156",
+        category = ComponentCategory.THROTTLE,
+        shortDescription = "Elektroniczna przepustnica DBW (Drive-by-Wire) Bosch o średnicy gardzieli 68 mm. Najpopularniejszy wybór do konwersji ze starej linki na elektroniczną przepustnicę pod sterowniki EMU Black / MaxxECU w 1.8T, VR6, R32, BMW M50/M54.",
+        imageUrl = "https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&w=800&q=80",
+        vectorIllustrationKey = "throttle",
+        innerDiameterMm = 68.0,
+        outerDiameterMm = 76.0,
+        boltSpacingWidthMm = 60.0,
+        boltSpacingHeightMm = 60.0,
+        boltDiagonal1Mm = 84.8,
+        boltDiagonal2Mm = 84.8,
+        pinout = listOf(
+          PinInfo(
+            pinNumber = "Pin 1",
+            name = "Silnik DBW Motor +",
+            description = "Sterowanie silnikiem przepustnicy – kanał A z podwójnego mostka H w ECU (DBW Motor +)",
+            wireColor = "Żółty",
+            type = PinType.MOTOR
+          ),
+          PinInfo(
+            pinNumber = "Pin 2",
+            name = "Silnik DBW Motor -",
+            description = "Sterowanie silnikiem przepustnicy – kanał B z podwójnego mostka H w ECU (DBW Motor -)",
+            wireColor = "Niebieski",
+            type = PinType.MOTOR
+          ),
+          PinInfo(
+            pinNumber = "Pin 3",
+            name = "Sensor GND",
+            description = "Masa czujników położenia TPS z ECU",
+            wireColor = "Brązowy",
+            type = PinType.SENSOR_GND
+          ),
+          PinInfo(
+            pinNumber = "Pin 4",
+            name = "TPS 1 Sygnał",
+            description = "Główny potencjometr położenia motylka (0.5V zamknięta do 4.5V w pełni otwarta)",
+            wireColor = "Biały",
+            type = PinType.TPS
+          ),
+          PinInfo(
+            pinNumber = "Pin 5",
+            name = "+5V VREF",
+            description = "Zasilanie referencyjne potencjometrów TPS z ECU",
+            wireColor = "Czerwony",
+            type = PinType.VREF
+          ),
+          PinInfo(
+            pinNumber = "Pin 6",
+            name = "TPS 2 Sygnał",
+            description = "Drugi, redundantny potencjometr bezpieczeństwa (4.5V zamknięta do 0.5V w pełni otwarta)",
+            wireColor = "Zielony",
+            type = PinType.TPS
+          )
+        ),
+        characteristic = CharacteristicInfo(
+          type = CharType.TPS_CALIBRATION,
+          title = "Kalibracja potencjometrów TPS1 i TPS2",
+          inputLabel = "Kąt otwarcia (%)",
+          outputLabel = "Napięcie TPS 1 (V)",
+          points = listOf(
+            CalibrationPoint("0", "%", "0.50", "V"),
+            CalibrationPoint("25", "%", "1.50", "V"),
+            CalibrationPoint("50", "%", "2.50", "V"),
+            CalibrationPoint("75", "%", "3.50", "V"),
+            CalibrationPoint("100", "%", "4.50", "V")
+          ),
+          formulaOrNotes = "TPS1: rośnie od 0.5V do 4.5V. TPS2: maleje odwrotnie od 4.5V do 0.5V (suma sygnałów zawsze ~5.0V)."
+        ),
+        pullupRequired = false,
+        importantNotes = "• Średnica gardzieli (wewnętrzna): 68.0 mm.\n• Średnica zewnętrzna (dolot): 76.0 mm (standard 3 cale pod łącznik silikonowy).\n• Rozstaw śrub montażowych: 60 × 60 mm (kwadrat), przekątna 84.8 mm.\n• Sterowanie: Wymaga wyjścia DBW z mostkiem H (np. EMU Black piny G20/G21).\n• Bezpieczeństwo: Zawsze podłączaj oba kanały TPS (TPS1 i TPS2) dla redundancji.",
+        authorNick = "VAG_Tuner",
+        rating = 5.0f,
+        ratingVotesCount = 32
       )
     )
   }

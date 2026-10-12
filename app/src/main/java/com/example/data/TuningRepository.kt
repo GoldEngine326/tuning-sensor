@@ -200,7 +200,13 @@ class TuningRepository(
     connectorImageUrl: String = "",
     deadTimeTables: List<DeadTimeTable> = emptyList(),
     flowRateCc: Double? = null,
-    flowPressureBar: Double? = null
+    flowPressureBar: Double? = null,
+    innerDiameterMm: Double? = null,
+    outerDiameterMm: Double? = null,
+    boltSpacingWidthMm: Double? = null,
+    boltSpacingHeightMm: Double? = null,
+    boltDiagonal1Mm: Double? = null,
+    boltDiagonal2Mm: Double? = null
   ): TuningComponent {
     val uid = requireUserId()
     val newId = "sensor_" + UUID.randomUUID().toString().replace("-", "").take(12)
@@ -226,6 +232,9 @@ class TuningRepository(
         ComponentCategory.INJECTORS -> "vw_coils"
         ComponentCategory.TEMP_SENSOR -> "bosch_iat"
         ComponentCategory.LAMBDA -> "lsu_49"
+        ComponentCategory.THROTTLE -> "throttle"
+        ComponentCategory.FUEL_PRESSURE -> "map_3b"
+        ComponentCategory.OIL_PRESSURE -> "map_3b"
         else -> "map_3b"
       },
       pinout = pinout,
@@ -244,7 +253,13 @@ class TuningRepository(
       isUserAdded = true,
       deadTimeTables = deadTimeTables,
       flowRateCc = flowRateCc,
-      flowPressureBar = flowPressureBar
+      flowPressureBar = flowPressureBar,
+      innerDiameterMm = innerDiameterMm,
+      outerDiameterMm = outerDiameterMm,
+      boltSpacingWidthMm = boltSpacingWidthMm,
+      boltSpacingHeightMm = boltSpacingHeightMm,
+      boltDiagonal1Mm = boltDiagonal1Mm,
+      boltDiagonal2Mm = boltDiagonal2Mm
     )
 
     val payload = createFirestorePayload(newComp, uid, isCreate = true)
@@ -278,7 +293,13 @@ class TuningRepository(
     connectorImageUrl: String = "",
     deadTimeTables: List<DeadTimeTable> = emptyList(),
     flowRateCc: Double? = null,
-    flowPressureBar: Double? = null
+    flowPressureBar: Double? = null,
+    innerDiameterMm: Double? = null,
+    outerDiameterMm: Double? = null,
+    boltSpacingWidthMm: Double? = null,
+    boltSpacingHeightMm: Double? = null,
+    boltDiagonal1Mm: Double? = null,
+    boltDiagonal2Mm: Double? = null
   ): TuningComponent? {
     requireUserId()
     val existing = _components.value.find { it.id == id } ?: return null
@@ -306,7 +327,13 @@ class TuningRepository(
       lastEditedAtMillis = System.currentTimeMillis(),
       deadTimeTables = deadTimeTables,
       flowRateCc = flowRateCc,
-      flowPressureBar = flowPressureBar
+      flowPressureBar = flowPressureBar,
+      innerDiameterMm = innerDiameterMm,
+      outerDiameterMm = outerDiameterMm,
+      boltSpacingWidthMm = boltSpacingWidthMm,
+      boltSpacingHeightMm = boltSpacingHeightMm,
+      boltDiagonal1Mm = boltDiagonal1Mm,
+      boltDiagonal2Mm = boltDiagonal2Mm
     )
 
     _components.value = _components.value.map {
@@ -351,6 +378,24 @@ class TuningRepository(
     }
     if (updatedComp.flowPressureBar != null) {
       updatePayload["flowPressureBar"] = updatedComp.flowPressureBar
+    }
+    if (updatedComp.innerDiameterMm != null) {
+      updatePayload["innerDiameterMm"] = updatedComp.innerDiameterMm
+    }
+    if (updatedComp.outerDiameterMm != null) {
+      updatePayload["outerDiameterMm"] = updatedComp.outerDiameterMm
+    }
+    if (updatedComp.boltSpacingWidthMm != null) {
+      updatePayload["boltSpacingWidthMm"] = updatedComp.boltSpacingWidthMm
+    }
+    if (updatedComp.boltSpacingHeightMm != null) {
+      updatePayload["boltSpacingHeightMm"] = updatedComp.boltSpacingHeightMm
+    }
+    if (updatedComp.boltDiagonal1Mm != null) {
+      updatePayload["boltDiagonal1Mm"] = updatedComp.boltDiagonal1Mm
+    }
+    if (updatedComp.boltDiagonal2Mm != null) {
+      updatePayload["boltDiagonal2Mm"] = updatedComp.boltDiagonal2Mm
     }
 
     db.collection("sensors").document(id).update(updatePayload)
@@ -464,6 +509,24 @@ class TuningRepository(
     if (component.flowPressureBar != null) {
       map["flowPressureBar"] = component.flowPressureBar
     }
+    if (component.innerDiameterMm != null) {
+      map["innerDiameterMm"] = component.innerDiameterMm
+    }
+    if (component.outerDiameterMm != null) {
+      map["outerDiameterMm"] = component.outerDiameterMm
+    }
+    if (component.boltSpacingWidthMm != null) {
+      map["boltSpacingWidthMm"] = component.boltSpacingWidthMm
+    }
+    if (component.boltSpacingHeightMm != null) {
+      map["boltSpacingHeightMm"] = component.boltSpacingHeightMm
+    }
+    if (component.boltDiagonal1Mm != null) {
+      map["boltDiagonal1Mm"] = component.boltDiagonal1Mm
+    }
+    if (component.boltDiagonal2Mm != null) {
+      map["boltDiagonal2Mm"] = component.boltDiagonal2Mm
+    }
 
     return map
   }
@@ -563,7 +626,11 @@ class TuningRepository(
       name = data["name"] as? String ?: "",
       partNumber = data["partNumber"] as? String ?: "",
       category = try {
-        ComponentCategory.valueOf(data["category"] as? String ?: "OTHER")
+        val catStr = data["category"] as? String ?: "OTHER"
+        when (catStr) {
+          "PRESSURE_TEMP" -> ComponentCategory.OIL_PRESSURE
+          else -> ComponentCategory.valueOf(catStr)
+        }
       } catch (_: Exception) {
         ComponentCategory.OTHER
       },
@@ -590,7 +657,13 @@ class TuningRepository(
       isUserAdded = data["isUserAdded"] as? Boolean ?: false,
       deadTimeTables = parseDeadTimeTables(data["deadTimeTables"]),
       flowRateCc = (data["flowRateCc"] as? Number)?.toDouble(),
-      flowPressureBar = (data["flowPressureBar"] as? Number)?.toDouble()
+      flowPressureBar = (data["flowPressureBar"] as? Number)?.toDouble(),
+      innerDiameterMm = (data["innerDiameterMm"] as? Number)?.toDouble(),
+      outerDiameterMm = (data["outerDiameterMm"] as? Number)?.toDouble(),
+      boltSpacingWidthMm = (data["boltSpacingWidthMm"] as? Number)?.toDouble(),
+      boltSpacingHeightMm = (data["boltSpacingHeightMm"] as? Number)?.toDouble(),
+      boltDiagonal1Mm = (data["boltDiagonal1Mm"] as? Number)?.toDouble(),
+      boltDiagonal2Mm = (data["boltDiagonal2Mm"] as? Number)?.toDouble()
     )
   }
 

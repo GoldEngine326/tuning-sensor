@@ -79,7 +79,13 @@ class TuningViewModel(private val repository: TuningRepository) : ViewModel() {
     connectorImageUrl: String = "",
     deadTimeTables: List<DeadTimeTable> = emptyList(),
     flowRateCc: Double? = null,
-    flowPressureBar: Double? = null
+    flowPressureBar: Double? = null,
+    innerDiameterMm: Double? = null,
+    outerDiameterMm: Double? = null,
+    boltSpacingWidthMm: Double? = null,
+    boltSpacingHeightMm: Double? = null,
+    boltDiagonal1Mm: Double? = null,
+    boltDiagonal2Mm: Double? = null
   ): TuningComponent {
     return repository.addComponent(
       name = name,
@@ -98,7 +104,13 @@ class TuningViewModel(private val repository: TuningRepository) : ViewModel() {
       connectorImageUrl = connectorImageUrl,
       deadTimeTables = deadTimeTables,
       flowRateCc = flowRateCc,
-      flowPressureBar = flowPressureBar
+      flowPressureBar = flowPressureBar,
+      innerDiameterMm = innerDiameterMm,
+      outerDiameterMm = outerDiameterMm,
+      boltSpacingWidthMm = boltSpacingWidthMm,
+      boltSpacingHeightMm = boltSpacingHeightMm,
+      boltDiagonal1Mm = boltDiagonal1Mm,
+      boltDiagonal2Mm = boltDiagonal2Mm
     )
   }
 
@@ -120,7 +132,13 @@ class TuningViewModel(private val repository: TuningRepository) : ViewModel() {
     connectorImageUrl: String = "",
     deadTimeTables: List<DeadTimeTable> = emptyList(),
     flowRateCc: Double? = null,
-    flowPressureBar: Double? = null
+    flowPressureBar: Double? = null,
+    innerDiameterMm: Double? = null,
+    outerDiameterMm: Double? = null,
+    boltSpacingWidthMm: Double? = null,
+    boltSpacingHeightMm: Double? = null,
+    boltDiagonal1Mm: Double? = null,
+    boltDiagonal2Mm: Double? = null
   ): TuningComponent? {
     return repository.updateComponent(
       id = id,
@@ -140,7 +158,13 @@ class TuningViewModel(private val repository: TuningRepository) : ViewModel() {
       connectorImageUrl = connectorImageUrl,
       deadTimeTables = deadTimeTables,
       flowRateCc = flowRateCc,
-      flowPressureBar = flowPressureBar
+      flowPressureBar = flowPressureBar,
+      innerDiameterMm = innerDiameterMm,
+      outerDiameterMm = outerDiameterMm,
+      boltSpacingWidthMm = boltSpacingWidthMm,
+      boltSpacingHeightMm = boltSpacingHeightMm,
+      boltDiagonal1Mm = boltDiagonal1Mm,
+      boltDiagonal2Mm = boltDiagonal2Mm
     )
   }
 
@@ -359,7 +383,7 @@ fun TuningAppContent(
           userNick = userNick,
           existingComponent = null,
           onDismiss = { currentScreen = AppScreen.Home },
-          onSave = { name, partNumber, category, shortDesc, imgUrl, imgs, pins, char, resChar, pullupReq, pullupVal, pullupNote, notes, connImg, deadTimeTables, flowRateCc, flowPressureBar ->
+          onSave = { name, partNumber, category, shortDesc, imgUrl, imgs, pins, char, resChar, pullupReq, pullupVal, pullupNote, notes, connImg, deadTimeTables, flowRateCc, flowPressureBar, innerDia, outerDia, boltW, boltH, boltD1, boltD2 ->
             val created = viewModel.addComponent(
               name = name,
               partNumber = partNumber,
@@ -377,7 +401,13 @@ fun TuningAppContent(
               connectorImageUrl = connImg,
               deadTimeTables = deadTimeTables,
               flowRateCc = flowRateCc,
-              flowPressureBar = flowPressureBar
+              flowPressureBar = flowPressureBar,
+              innerDiameterMm = innerDia,
+              outerDiameterMm = outerDia,
+              boltSpacingWidthMm = boltW,
+              boltSpacingHeightMm = boltH,
+              boltDiagonal1Mm = boltD1,
+              boltDiagonal2Mm = boltD2
             )
             android.widget.Toast.makeText(
               context,
@@ -399,7 +429,7 @@ fun TuningAppContent(
             userNick = userNick,
             existingComponent = component,
             onDismiss = { currentScreen = AppScreen.Detail(component.id) },
-            onSave = { name, partNumber, category, shortDesc, imgUrl, imgs, pins, char, resChar, pullupReq, pullupVal, pullupNote, notes, connImg, deadTimeTables, flowRateCc, flowPressureBar ->
+            onSave = { name, partNumber, category, shortDesc, imgUrl, imgs, pins, char, resChar, pullupReq, pullupVal, pullupNote, notes, connImg, deadTimeTables, flowRateCc, flowPressureBar, innerDia, outerDia, boltW, boltH, boltD1, boltD2 ->
               viewModel.updateComponent(
                 id = component.id,
                 name = name,
@@ -418,7 +448,13 @@ fun TuningAppContent(
                 connectorImageUrl = connImg,
                 deadTimeTables = deadTimeTables,
                 flowRateCc = flowRateCc,
-                flowPressureBar = flowPressureBar
+                flowPressureBar = flowPressureBar,
+                innerDiameterMm = innerDia,
+                outerDiameterMm = outerDia,
+                boltSpacingWidthMm = boltW,
+                boltSpacingHeightMm = boltH,
+                boltDiagonal1Mm = boltD1,
+                boltDiagonal2Mm = boltD2
               )
               android.widget.Toast.makeText(
                 context,

@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Architecture
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -517,6 +518,22 @@ fun ComponentListCard(
               Spacer(Modifier.width(3.dp))
               val flowText = if (component.flowRateCc % 1.0 == 0.0) component.flowRateCc.toInt().toString() else component.flowRateCc.toString()
               Text("$flowText cc", fontSize = 10.sp, color = TunerCyan, fontWeight = FontWeight.Bold)
+            }
+          }
+
+          // Throttle diameter badge
+          if (component.innerDiameterMm != null) {
+            Spacer(Modifier.width(8.dp))
+            Row(
+              verticalAlignment = Alignment.CenterVertically,
+              modifier = Modifier
+                .background(TunerCyan.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                .padding(horizontal = 5.dp, vertical = 1.dp)
+            ) {
+              Icon(Icons.Default.Architecture, contentDescription = null, tint = TunerCyan, modifier = Modifier.size(11.dp))
+              Spacer(Modifier.width(3.dp))
+              val diaText = if (component.innerDiameterMm % 1.0 == 0.0) component.innerDiameterMm.toInt().toString() else component.innerDiameterMm.toString()
+              Text("Ø $diaText mm", fontSize = 10.sp, color = TunerCyan, fontWeight = FontWeight.Bold)
             }
           }
 

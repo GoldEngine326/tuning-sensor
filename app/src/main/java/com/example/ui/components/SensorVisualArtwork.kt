@@ -22,6 +22,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
@@ -141,6 +142,7 @@ fun VectorIllustration(vectorKey: String, modifier: Modifier = Modifier) {
         "uaefi" -> drawEcuIllustration(cx, cy)
         "bosch_iat" -> drawIatSensorIllustration(cx, cy)
         "lsu_49" -> drawLambdaIllustration(cx, cy)
+        "throttle" -> drawThrottleIllustration(cx, cy)
         else -> drawGenericSensorIllustration(cx, cy)
       }
     }
@@ -440,3 +442,81 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawGenericSensorIl
   )
   drawCircle(color = TunerCyan, radius = 20f, center = Offset(cx, cy))
 }
+
+// Vector graphic for Throttle Body (Przepustnica DBW)
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawThrottleIllustration(cx: Float, cy: Float) {
+  // Glow
+  drawCircle(
+    brush = Brush.radialGradient(
+      colors = listOf(TunerCyan.copy(alpha = 0.2f), Color.Transparent),
+      center = Offset(cx, cy),
+      radius = 120f
+    )
+  )
+
+  // Outer Flange Body
+  drawRoundRect(
+    color = Color(0xFF1E2330),
+    topLeft = Offset(cx - 62f, cy - 62f),
+    size = Size(124f, 124f),
+    cornerRadius = CornerRadius(14f, 14f)
+  )
+  drawRoundRect(
+    color = Color(0xFF323B50),
+    topLeft = Offset(cx - 62f, cy - 62f),
+    size = Size(124f, 124f),
+    cornerRadius = CornerRadius(14f, 14f),
+    style = Stroke(width = 2f)
+  )
+
+  // 4 Corner Bolt Holes
+  val boltOffsets = listOf(
+    Offset(cx - 46f, cy - 46f),
+    Offset(cx + 46f, cy - 46f),
+    Offset(cx + 46f, cy + 46f),
+    Offset(cx - 46f, cy + 46f)
+  )
+  boltOffsets.forEach { pt ->
+    drawCircle(color = Color(0xFF0C0E12), radius = 7f, center = pt)
+    drawCircle(color = Color(0xFF34C759), radius = 7f, center = pt, style = Stroke(width = 2f))
+  }
+
+  // Outer Inlet Lip (dashed)
+  drawCircle(
+    color = TunerAmber,
+    radius = 48f,
+    center = Offset(cx, cy),
+    style = Stroke(width = 2.5f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 4f), 0f))
+  )
+
+  // Inner Throttle Bore
+  drawCircle(color = Color(0xFF0C0E12), radius = 38f, center = Offset(cx, cy))
+  drawCircle(color = TunerCyan, radius = 38f, center = Offset(cx, cy), style = Stroke(width = 3f))
+
+  // Butterfly Throttle Plate (Brass/Amber Axle)
+  drawLine(
+    color = TunerAmber,
+    start = Offset(cx, cy - 36f),
+    end = Offset(cx, cy + 36f),
+    strokeWidth = 3.5f,
+    cap = StrokeCap.Round
+  )
+  drawCircle(color = Color.White, radius = 2.5f, center = Offset(cx, cy - 14f))
+  drawCircle(color = Color.White, radius = 2.5f, center = Offset(cx, cy + 14f))
+
+  // Drive-by-wire servo motor housing on the right
+  drawRoundRect(
+    color = Color(0xFF262C3D),
+    topLeft = Offset(cx + 60f, cy - 35f),
+    size = Size(25f, 70f),
+    cornerRadius = CornerRadius(6f, 6f)
+  )
+  drawRoundRect(
+    color = TunerCyan,
+    topLeft = Offset(cx + 60f, cy - 35f),
+    size = Size(25f, 70f),
+    cornerRadius = CornerRadius(6f, 6f),
+    style = Stroke(width = 1.5f)
+  )
+}
+

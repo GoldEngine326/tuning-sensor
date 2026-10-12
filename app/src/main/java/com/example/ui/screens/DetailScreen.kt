@@ -66,6 +66,7 @@ import com.example.model.TuningComponent
 import com.example.ui.components.CharacteristicsView
 import com.example.ui.components.DeadTimeTablesView
 import com.example.ui.components.InjectorFlowCalculatorCard
+import com.example.ui.components.ThrottleDimensionsCard
 import com.example.ui.components.ComponentHeroImage
 import com.example.ui.components.PinoutView
 import com.example.ui.components.PullupWarningCard
@@ -517,6 +518,20 @@ fun DetailScreen(
       )
 
       Spacer(Modifier.height(20.dp))
+
+      // WYMIARY PRZEPUSTNICY I ROZSTAW ŚRUB DLA KATEGORII PRZEPUSTNICA
+      if (component.category == ComponentCategory.THROTTLE || component.innerDiameterMm != null || component.boltSpacingWidthMm != null) {
+        ThrottleDimensionsCard(
+          innerDiameterMm = component.innerDiameterMm,
+          outerDiameterMm = component.outerDiameterMm,
+          boltSpacingWidthMm = component.boltSpacingWidthMm,
+          boltSpacingHeightMm = component.boltSpacingHeightMm,
+          boltDiagonal1Mm = component.boltDiagonal1Mm,
+          boltDiagonal2Mm = component.boltDiagonal2Mm,
+          modifier = Modifier.testTag("detail_throttle_dimensions_card")
+        )
+        Spacer(Modifier.height(20.dp))
+      }
 
       // 3. WYDAJNOŚĆ WTRYSKIWACZA & KALKULATOR CIŚNIENIA DLA WTRYSKIWACZY
       if (component.category == ComponentCategory.INJECTORS || component.flowRateCc != null) {

@@ -57,6 +57,11 @@ import java.io.File
 import com.example.ui.components.ComponentHeroImage
 import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Architecture
+import androidx.compose.material.icons.filled.Straighten
+import com.example.ui.components.ThrottleDimensionsCard
+import kotlin.math.hypot
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -168,7 +173,13 @@ fun AddComponentDialog(
     connectorImageUrl: String,
     deadTimeTables: List<com.example.model.DeadTimeTable>,
     flowRateCc: Double?,
-    flowPressureBar: Double?
+    flowPressureBar: Double?,
+    innerDiameterMm: Double?,
+    outerDiameterMm: Double?,
+    boltSpacingWidthMm: Double?,
+    boltSpacingHeightMm: Double?,
+    boltDiagonal1Mm: Double?,
+    boltDiagonal2Mm: Double?
   ) -> Unit,
   onDelete: (() -> Unit)? = null,
   modifier: Modifier = Modifier
@@ -441,6 +452,26 @@ fun AddComponentDialog(
     mutableStateOf(existingComponent?.flowPressureBar?.let { if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() } ?: "3.0")
   }
 
+  // Wymiary przepustnicy (Throttle Body)
+  var innerDiameterInput by remember(compKey) {
+    mutableStateOf(existingComponent?.innerDiameterMm?.let { if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() } ?: "")
+  }
+  var outerDiameterInput by remember(compKey) {
+    mutableStateOf(existingComponent?.outerDiameterMm?.let { if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() } ?: "")
+  }
+  var boltSpacingWidthInput by remember(compKey) {
+    mutableStateOf(existingComponent?.boltSpacingWidthMm?.let { if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() } ?: "")
+  }
+  var boltSpacingHeightInput by remember(compKey) {
+    mutableStateOf(existingComponent?.boltSpacingHeightMm?.let { if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() } ?: "")
+  }
+  var boltDiagonal1Input by remember(compKey) {
+    mutableStateOf(existingComponent?.boltDiagonal1Mm?.let { if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() } ?: "")
+  }
+  var boltDiagonal2Input by remember(compKey) {
+    mutableStateOf(existingComponent?.boltDiagonal2Mm?.let { if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() } ?: "")
+  }
+
   var importantNotes by remember(compKey) { mutableStateOf(existingComponent?.importantNotes ?: "") }
   var errorMessage by remember(compKey) { mutableStateOf<String?>(null) }
   var showDeleteConfirmDialog by remember(compKey) { mutableStateOf(false) }
@@ -570,6 +601,30 @@ fun AddComponentDialog(
                 flowPressureBarInput.replace(",", ".").trim().toDoubleOrNull()
               } else null
 
+              val parsedInnerDiameter = if (category == ComponentCategory.THROTTLE) {
+                innerDiameterInput.replace(",", ".").trim().toDoubleOrNull()
+              } else null
+
+              val parsedOuterDiameter = if (category == ComponentCategory.THROTTLE) {
+                outerDiameterInput.replace(",", ".").trim().toDoubleOrNull()
+              } else null
+
+              val parsedBoltWidth = if (category == ComponentCategory.THROTTLE) {
+                boltSpacingWidthInput.replace(",", ".").trim().toDoubleOrNull()
+              } else null
+
+              val parsedBoltHeight = if (category == ComponentCategory.THROTTLE) {
+                boltSpacingHeightInput.replace(",", ".").trim().toDoubleOrNull()
+              } else null
+
+              val parsedDiag1 = if (category == ComponentCategory.THROTTLE) {
+                boltDiagonal1Input.replace(",", ".").trim().toDoubleOrNull()
+              } else null
+
+              val parsedDiag2 = if (category == ComponentCategory.THROTTLE) {
+                boltDiagonal2Input.replace(",", ".").trim().toDoubleOrNull()
+              } else null
+
               onSave(
                 name,
                 partNumber,
@@ -587,7 +642,13 @@ fun AddComponentDialog(
                 connectorImageUrl,
                 finalDeadTimeTables,
                 parsedFlowRate,
-                parsedFlowPressure
+                parsedFlowPressure,
+                parsedInnerDiameter,
+                parsedOuterDiameter,
+                parsedBoltWidth,
+                parsedBoltHeight,
+                parsedDiag1,
+                parsedDiag2
               )
             },
             colors = ButtonDefaults.buttonColors(containerColor = if (isEditing) TunerAmber else TuningRed),
@@ -706,6 +767,21 @@ fun AddComponentDialog(
                 if (cat == ComponentCategory.TEMP_SENSOR) {
                   pullupRequired = true
                   includeResistanceChar = true
+                }
+                if (cat == ComponentCategory.THROTTLE) {
+                  if (pinsList.size == 3 && pinsList[0].description.contains("Masa sensoryczna", ignoreCase = true)) {
+                    pinsList.clear()
+                    pinsList.addAll(
+                      listOf(
+                        PinDraft(pinNumber = "Pin 1", name = "Silnik Motor +", description = "Sterowanie silnikiem przepustnicy (H-Bridge A)", wireColor = "Żółty", type = PinType.MOTOR, connectorName = "Wtyczka A"),
+                        PinDraft(pinNumber = "Pin 2", name = "Silnik Motor -", description = "Sterowanie silnikiem przepustnicy (H-Bridge B)", wireColor = "Niebieski", type = PinType.MOTOR, connectorName = "Wtyczka A"),
+                        PinDraft(pinNumber = "Pin 3", name = "Sensor GND", description = "Masa czujników położenia TPS z ECU", wireColor = "Brązowy", type = PinType.SENSOR_GND, connectorName = "Wtyczka A"),
+                        PinDraft(pinNumber = "Pin 4", name = "TPS 1 Sygnał", description = "Główny potencjometr kąta otwarcia 0.5V - 4.5V", wireColor = "Biały", type = PinType.TPS, connectorName = "Wtyczka A"),
+                        PinDraft(pinNumber = "Pin 5", name = "+5V VREF", description = "Zasilanie referencyjne czujników z ECU", wireColor = "Czerwony", type = PinType.VREF, connectorName = "Wtyczka A"),
+                        PinDraft(pinNumber = "Pin 6", name = "TPS 2 Sygnał", description = "Drugi potencjometr redundantny kąta otwarcia 4.5V - 0.5V", wireColor = "Zielony", type = PinType.TPS, connectorName = "Wtyczka A")
+                      )
+                    )
+                  }
                 }
                 categoryDropdownExpanded = false
               }
@@ -1506,6 +1582,224 @@ fun AddComponentDialog(
       }
 
       Spacer(Modifier.height(20.dp))
+
+      // 5. WYMIARY PRZEPUSTNICY I ROZSTAW ŚRUB DLA KATEGORII PRZEPUSTNICA
+      if (category == ComponentCategory.THROTTLE) {
+        SectionHeader(title = "5. Wymiary przepustnicy i rozstaw śrub", icon = Icons.Default.Architecture)
+        Spacer(Modifier.height(8.dp))
+
+        Card(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 14.dp),
+          shape = RoundedCornerShape(12.dp),
+          colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated),
+          border = androidx.compose.foundation.BorderStroke(1.dp, TunerCyan.copy(alpha = 0.5f))
+        ) {
+          Column(modifier = Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              Box(
+                modifier = Modifier
+                  .size(28.dp)
+                  .background(TunerCyan.copy(alpha = 0.15f), RoundedCornerShape(6.dp)),
+                contentAlignment = Alignment.Center
+              ) {
+                Icon(
+                  imageVector = Icons.Default.Architecture,
+                  contentDescription = null,
+                  tint = TunerCyan,
+                  modifier = Modifier.size(16.dp)
+                )
+              }
+              Spacer(Modifier.width(8.dp))
+              Text(
+                text = "Wymiary gardzieli i kołnierza montażowego",
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.5.sp,
+                color = TextPrimary
+              )
+            }
+
+            Spacer(Modifier.height(8.dp))
+            Text(
+              text = "Podaj średnicę wewnętrzną i zewnętrzną oraz wymiary rozstawu otworów na śruby montażowe (od środka do środka śruby dla boku 1 i boku 2 oraz przekątne).",
+              fontSize = 11.5.sp,
+              color = TextSecondary,
+              lineHeight = 16.sp
+            )
+
+            Spacer(Modifier.height(14.dp))
+
+            // Średnice
+            Text(
+              text = "Średnice przepustnicy [mm]:",
+              fontSize = 12.sp,
+              fontWeight = FontWeight.Bold,
+              color = TunerCyan
+            )
+            Spacer(Modifier.height(6.dp))
+
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+              OutlinedTextField(
+                value = innerDiameterInput,
+                onValueChange = { innerDiameterInput = it },
+                label = { Text("Średnica wewn. (gardziel)") },
+                placeholder = { Text("np. 68") },
+                modifier = Modifier.weight(1f),
+                colors = customFieldColors(),
+                singleLine = true,
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                  keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                )
+              )
+
+              OutlinedTextField(
+                value = outerDiameterInput,
+                onValueChange = { outerDiameterInput = it },
+                label = { Text("Średnica zewn. (dolot)") },
+                placeholder = { Text("np. 76") },
+                modifier = Modifier.weight(1f),
+                colors = customFieldColors(),
+                singleLine = true,
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                  keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                )
+              )
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            // Rozmieszczenie otworów montażowych
+            Text(
+              text = "Rozstaw otworów na śruby (od środka do środka śruby) [mm]:",
+              fontSize = 12.sp,
+              fontWeight = FontWeight.Bold,
+              color = TunerAmber
+            )
+            Spacer(Modifier.height(6.dp))
+
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+              OutlinedTextField(
+                value = boltSpacingWidthInput,
+                onValueChange = { boltSpacingWidthInput = it },
+                label = { Text("Bok 1 (szerokość)") },
+                placeholder = { Text("np. 60") },
+                modifier = Modifier.weight(1f),
+                colors = customFieldColors(),
+                singleLine = true,
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                  keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                )
+              )
+
+              OutlinedTextField(
+                value = boltSpacingHeightInput,
+                onValueChange = { boltSpacingHeightInput = it },
+                label = { Text("Bok 2 (wysokość)") },
+                placeholder = { Text("np. 60") },
+                modifier = Modifier.weight(1f),
+                colors = customFieldColors(),
+                singleLine = true,
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                  keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                )
+              )
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+              OutlinedTextField(
+                value = boltDiagonal1Input,
+                onValueChange = { boltDiagonal1Input = it },
+                label = { Text("Przekątna 1 (D1)") },
+                placeholder = { Text("np. 84.8") },
+                modifier = Modifier.weight(1f),
+                colors = customFieldColors(),
+                singleLine = true,
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                  keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                )
+              )
+
+              OutlinedTextField(
+                value = boltDiagonal2Input,
+                onValueChange = { boltDiagonal2Input = it },
+                label = { Text("Przekątna 2 (D2)") },
+                placeholder = { Text("np. 84.8") },
+                modifier = Modifier.weight(1f),
+                colors = customFieldColors(),
+                singleLine = true,
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                  keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                )
+              )
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            // Przycisk wyliczenia przekątnej z boków
+            FilledTonalButton(
+              onClick = {
+                val w = boltSpacingWidthInput.replace(",", ".").trim().toDoubleOrNull()
+                val h = boltSpacingHeightInput.replace(",", ".").trim().toDoubleOrNull()
+                if (w != null && h != null && w > 0.0 && h > 0.0) {
+                  val diag = hypot(w, h)
+                  val diagStr = String.format(java.util.Locale.US, "%.1f", diag)
+                  boltDiagonal1Input = diagStr
+                  boltDiagonal2Input = diagStr
+                }
+              },
+              modifier = Modifier.fillMaxWidth(),
+              shape = RoundedCornerShape(8.dp),
+              colors = ButtonDefaults.filledTonalButtonColors(
+                containerColor = DarkSurfaceVariant,
+                contentColor = TunerCyan
+              )
+            ) {
+              Icon(Icons.Default.Straighten, contentDescription = null, modifier = Modifier.size(16.dp))
+              Spacer(Modifier.width(8.dp))
+              Text("Oblicz przekątne z wymiarów boków: √(a² + b²)", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+
+            // Podgląd schematu na żywo
+            val pInner = innerDiameterInput.replace(",", ".").trim().toDoubleOrNull()
+            val pOuter = outerDiameterInput.replace(",", ".").trim().toDoubleOrNull()
+            val pWidth = boltSpacingWidthInput.replace(",", ".").trim().toDoubleOrNull()
+            val pHeight = boltSpacingHeightInput.replace(",", ".").trim().toDoubleOrNull()
+            val pDiag1 = boltDiagonal1Input.replace(",", ".").trim().toDoubleOrNull()
+            val pDiag2 = boltDiagonal2Input.replace(",", ".").trim().toDoubleOrNull()
+
+            if (pInner != null || pOuter != null || pWidth != null || pHeight != null) {
+              Spacer(Modifier.height(14.dp))
+              Text(
+                text = "Podgląd schematu technicznego:",
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextSecondary
+              )
+              Spacer(Modifier.height(8.dp))
+              ThrottleDimensionsCard(
+                innerDiameterMm = pInner,
+                outerDiameterMm = pOuter,
+                boltSpacingWidthMm = pWidth,
+                boltSpacingHeightMm = pHeight,
+                boltDiagonal1Mm = pDiag1,
+                boltDiagonal2Mm = pDiag2
+              )
+            }
+          }
+        }
+      }
 
       // 5. CHARAKTERYSTYKA DLA WTRYSKIWACZY (DEAD TIME) LUB GŁÓWNA CHARAKTERYSTYKA (NAPIĘCIOWA / DWELL)
       if (category == ComponentCategory.INJECTORS) {
