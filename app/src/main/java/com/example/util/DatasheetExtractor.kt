@@ -567,21 +567,51 @@ object DatasheetExtractor {
 
   private fun buildAutomotiveExtractionPrompt(): String {
     return """
-Jesteś ekspertem tuningu motorsportu, elektroniki samochodowej i systemów Standalone ECU (EMU Black, Ecumaster, TunerStudio, Megasquirt, MaxxECU, Haltech, Link ECU).
-Twoim zadaniem jest dokładny odczyt i ekstrakcja danych z załączonej karty katalogowej (datasheet), zdjęcia tabeli, schematu lub dokumentu technicznego podzespołu silnikowego.
+Jesteś profesjonalnym systemem OCR i inżynierem tuningu motorsportu, elektroniki samochodowej oraz samodzielnych sterowników silnika (Standalone ECU: EMU Black, Ecumaster, TunerStudio, Megasquirt, MaxxECU, Haltech, Link ECU).
+Twoim zadaniem jest bezbłędny, skrupulatny odczyt tabel, wykresów, schematów pinoutu oraz danych kalibracyjnych z załączonego zdjęcia lub dokumentu.
 
-Zwróć wynik WYŁĄCZNIE jako poprawny obiekt JSON o następującej strukturze:
+BARDZO WAŻNE WYMAGANIA JĘZYKOWE (JĘZYK POLSKI):
+1. Wszystkie generowane teksty, opisy (shortDescription), uwagi techniczne (importantNotes, notes), nazwy tabel (tableName) oraz wypunktowane podsumowanie (summaryBullets) MUSZĄ BYĆ BEZWZGLĘDNIE W 100% W JĘZYKU POLSKIM. Nigdy nie używaj języka angielskiego w opisach!
+
+BARDZO WAŻNA ZASADA DLA WTRYSKIWACZY I TABEL DEAD TIME (BATERIA CIŚNIEŃ):
+2. Jeśli zdjęcie zawiera tabelę czasów martwych (Dead Time / Battery Voltage Offset / Latency / Czas martwy) dla WIELU CIŚNIEŃ (np. od 2.5 bar do 6.0 bar co 0.5 bar, lub w psi/kPa):
+   - MUSISZ WYODRĘBNIĆ WSZYSTKIE POZIOMY CIŚNIENIA! Każdy poziom ciśnienia na zdjęciu to OSOBNY ELEMENT w tablicy "deadTimeTables".
+   - Jeśli na zdjęciu jest 8 wierszy lub kolumn z różnymi ciśnieniami (np. 2.5 bar, 3.0 bar, 3.5 bar, 4.0 bar, 4.5 bar, 5.0 bar, 5.5 bar, 6.0 bar), tablica "deadTimeTables" MUSI zawierać DOKŁADNIE 8 OBIEKTÓW!
+   - Każdy obiekt w "deadTimeTables" reprezentuje jedno ciśnienie:
+     * "tableName": np. "2.5 bar", "3.0 bar", "3.5 bar", "4.0 bar", "4.5 bar", "5.0 bar", "5.5 bar", "6.0 bar" (lub z dopiskiem ciśnienia, np. "Tabela 2.5 bar").
+     * "notes": np. "Czas martwy dla ciśnienia 2.5 bar"
+     * "points": pełna lista punktów napięcie vs czas ms (np. dla 8V, 9V, 10V, 11V, 12V, 13V, 14V, 15V, 16V).
+   - NIGDY NIE POPRZESTAWAJ NA PIERWSZYM WIERSZU! Tuner w ECU potrzebuje pełnej macierzy dla wszystkich ciśnień (np. wszystkich 8 wierszy od 2.5b do 6.0b).
+
+ZASADY DLA INNYCH CZUJNIKÓW I PODZESPOŁÓW:
+3. Dla czujników MAP i ciśnienia: odczytaj całą charakterystykę kalibracyjną (kPa/bar vs V) do "calibrationPoints".
+4. Dla czujników temperatury (NTC): odczytaj pełną tabelę oporności (°C vs Ω) do "resistancePoints" oraz zaznacz pullupRequired = true.
+5. Dla przepustnic (DBW): odczytaj średnice, rozstawy śrub oraz schemat pinoutu.
+6. Numery pinów w "pins": wyłącznie czyste cyfry (np. "1", "2"), bez słowa "Pin".
+
+STRUKTURA ZWRACANEGO JSON:
 {
-  "name": "Pełna nazwa podzespołu (np. Bosch EV14 630cc, MAP Sensor 3 Bar)",
+  "name": "Pełna nazwa podzespołu w języku polskim (np. Wtryskiwacze Bosch EV14 630cc)",
   "partNumber": "Numer katalogowy / OE (np. 0 280 158 117)",
   "category": "Jeden z: MAP_SENSOR, INJECTORS, TEMP_SENSOR, THROTTLE, COILS, FUEL_PRESSURE, OIL_PRESSURE, LAMBDA, ECU, MODULES, OTHER",
-  "shortDescription": "Zwięzłe podsumowanie zastosowania",
-  "flowRateCc": 630.0, // Tylko dla wtryskiwaczy (Wydajność w cc/min). Jeśli brak, null.
-  "flowPressureBar": 3.0, // Ciśnienie bazowe testu w bar (np. 3.0). Jeśli brak, null.
-  "deadTimeTables": [ // Tylko dla wtryskiwaczy: Tabele Dead Time (czas martwy vs napięcie)
+  "shortDescription": "Zwięzły i dokładny opis podzespołu w języku polskim",
+  "flowRateCc": 630.0, // Wydajność w cc/min (dla wtryskiwaczy) lub null
+  "flowPressureBar": 3.0, // Ciśnienie bazowe testu w bar (np. 3.0) lub null
+  "deadTimeTables": [ // DLA KAŻDEGO POZIOMU CIŚNIENIA NA ZDJĘCIU OSOBNY OBIEKT!
     {
-      "tableName": "3.0 bar (Diff)",
-      "notes": "Dead time przy 3.0 bar",
+      "tableName": "2.5 bar",
+      "notes": "Czas martwy przy ciśnieniu 2.5 bar",
+      "points": [
+        {"voltage": "8.0", "timeMs": "2.10"},
+        {"voltage": "10.0", "timeMs": "1.52"},
+        {"voltage": "12.0", "timeMs": "1.18"},
+        {"voltage": "14.0", "timeMs": "0.95"},
+        {"voltage": "16.0", "timeMs": "0.78"}
+      ]
+    },
+    {
+      "tableName": "3.0 bar",
+      "notes": "Czas martwy przy ciśnieniu 3.0 bar",
       "points": [
         {"voltage": "8.0", "timeMs": "2.30"},
         {"voltage": "10.0", "timeMs": "1.65"},
@@ -589,56 +619,57 @@ Zwróć wynik WYŁĄCZNIE jako poprawny obiekt JSON o następującej strukturze:
         {"voltage": "14.0", "timeMs": "1.00"},
         {"voltage": "16.0", "timeMs": "0.85"}
       ]
+    },
+    {
+      "tableName": "3.5 bar",
+      "notes": "Czas martwy przy ciśnieniu 3.5 bar",
+      "points": [
+        {"voltage": "8.0", "timeMs": "2.45"},
+        {"voltage": "10.0", "timeMs": "1.75"},
+        {"voltage": "12.0", "timeMs": "1.32"},
+        {"voltage": "14.0", "timeMs": "1.05"},
+        {"voltage": "16.0", "timeMs": "0.90"}
+      ]
     }
+    // ... i tak dalej dla WSZYSTKICH ciśnień widocznych w tabeli (np. 4.0b, 4.5b, 5.0b, 5.5b, 6.0b)!
   ],
-  "calibrationPoints": [ // Dla czujników MAP, ciśnienia, TPS lub ogólnych (wartość wejściowa vs napięcie wyjściowe V)
+  "calibrationPoints": [ // Dla czujników MAP, ciśnienia, TPS
     {"inputValue": "20.0", "inputUnit": "kPa", "outputValue": "0.40", "outputUnit": "V"},
-    {"inputValue": "100.0", "inputUnit": "kPa", "outputValue": "1.60", "outputUnit": "V"},
-    {"inputValue": "300.0", "inputUnit": "kPa", "outputValue": "4.65", "outputUnit": "V"}
+    {"inputValue": "100.0", "inputUnit": "kPa", "outputValue": "1.60", "outputUnit": "V"}
   ],
-  "calInputUnit": "kPa", // np. kPa, bar
-  "calOutputUnit": "V", // zazwyczaj V
-  "charTitle": "Tytuł charakterystyki",
-  "includeResistanceChar": false, // true dla czujników temp. NTC
+  "calInputUnit": "kPa",
+  "calOutputUnit": "V",
+  "charTitle": "Charakterystyka kalibracyjna ciśnienia",
+  "includeResistanceChar": false,
   "resInputUnit": "°C",
   "resOutputUnit": "Ω",
   "resCharTitle": "Charakterystyka opornościowa NTC",
-  "resistancePoints": [ // Punkty rezystancji dla termistorów NTC
-    {"inputValue": "-20", "inputUnit": "°C", "outputValue": "15000", "outputUnit": "Ω"},
-    {"inputValue": "20", "inputUnit": "°C", "outputValue": "2500", "outputUnit": "Ω"},
-    {"inputValue": "80", "inputUnit": "°C", "outputValue": "330", "outputUnit": "Ω"}
-  ],
-  "pullupRequired": false, // true jeśli czujnik wymaga rezystora podciągającego (np. NTC)
+  "resistancePoints": [],
+  "pullupRequired": false,
   "pullupValue": "2.49 kΩ do +5V VREF",
-  "innerDiameterMm": null, // Dla przepustnic: średnica wewnętrzna w mm (np. 68.0)
-  "outerDiameterMm": null, // Dla przepustnic: średnica zewnętrzna w mm (np. 76.0)
-  "boltSpacingWidthMm": null, // Dla przepustnic: rozstaw śrub bok 1 (szerokość) w mm (np. 60.0)
-  "boltSpacingHeightMm": null, // Dla przepustnic: rozstaw śrub bok 2 (wysokość) w mm (np. 60.0)
-  "boltDiagonal1Mm": null, // Dla przepustnic: przekątna 1 w mm (np. 84.8)
-  "boltDiagonal2Mm": null, // Dla przepustnic: przekątna 2 w mm (np. 84.8)
-  "pins": [ // Wykaz pinów złącza
+  "innerDiameterMm": null,
+  "outerDiameterMm": null,
+  "boltSpacingWidthMm": null,
+  "boltSpacingHeightMm": null,
+  "boltDiagonal1Mm": null,
+  "boltDiagonal2Mm": null,
+  "pins": [
     {
-      "pinNumber": "1", // TYLKO numer (np. 1, 2, 3)
-      "name": "Krótka funkcja pinu (np. Sensor GND, +5V VREF, Sygnał MAP)",
-      "description": "Szczegółowy opis lub uwagi",
-      "wireColor": "Czerwony/Brązowy/Biały/Niebieski",
-      "type": "Jeden z: POWER, GROUND, SENSOR_GND, VREF, SIGNAL_OUT, SIGNAL_IN, INJECTOR, IGNITION, MOTOR, TPS, OTHER"
+      "pinNumber": "1",
+      "name": "Zasilanie +12V",
+      "description": "Zasilanie cewki wtryskiwacza po stacyjce",
+      "wireColor": "Czerwony",
+      "type": "INJECTOR"
     }
   ],
-  "importantNotes": "Ważne uwagi instalacyjne, momenty dokręcania, zalecenia dla tunera",
-  "summaryBullets": [ // 2-5 punktów podsumowujących co zostało odczytane w języku polskim
-    "Rozpoznano model i numer katalogowy",
-    "Wyodrębniono tabelę..."
+  "importantNotes": "Ważne uwagi instalacyjne, zalecenia tunera w języku polskim",
+  "summaryBullets": [ // 2-5 punktów podsumowujących odczyt w języku polskim
+    "Rozpoznano wtryskiwacze i wydajność",
+    "Odczytano pełną tabelę Dead Time dla wszystkich poziomów ciśnienia"
   ]
 }
 
-ZASADY:
-1. Jeśli kategoria to Przepustnica (THROTTLE), nie twórz charakterystyki napięciowej ani opornościowej, ale skup się na średnicy wewnętrznej/zewnętrznej, rozstawie śrub i przekątnych oraz pinoucie DBW/TPS.
-2. Jeśli kategoria to Wtryskiwacze (INJECTORS), koniecznie odczytaj wydajność (cc/min), ciśnienie oraz pełną tabelę Dead Time (wartości dla 8V, 10V, 12V, 14V, 16V).
-3. Dla czujników MAP: odczytaj tabelę kPa vs V lub bar vs V.
-4. Dla czujników temperatury (TEMP_SENSOR): odczytaj tabelę opornościową NTC (°C vs Ω) i zaznacz pullupRequired = true.
-5. Numery pinów to ZAWSZE same cyfry ("1", "2", "3"), bez słowa "Pin".
-6. Zwróć wyłącznie poprawny JSON, bez znaczników markdown ```json ani zbędnego tekstu.
+Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani zbędnego tekstu.
 """.trimIndent()
   }
 
@@ -877,21 +908,41 @@ ZASADY:
       null
     }
 
-    // Dead Time Tables
+    // Dead Time Tables - obsługa wielu ciśnień (np. 2.5b, 3.0b, ..., 6.0b)
     val deadTimeTablesList = mutableListOf<DeadTimeTableDraft>()
-    val dtArr = json.optJSONArray("deadTimeTables")
+    val dtArr = json.optJSONArray("deadTimeTables") 
+      ?: json.optJSONArray("deadTimes") 
+      ?: json.optJSONArray("tables")
+      ?: json.optJSONArray("dead_time_tables")
+
     if (dtArr != null) {
       for (i in 0 until dtArr.length()) {
         val tObj = dtArr.optJSONObject(i) ?: continue
-        val tableName = tObj.optString("tableName", "Tabela ${i + 1}")
-        val notes = tObj.optString("notes", "")
+        var tableName = tObj.optString("tableName", "").ifBlank {
+          tObj.optString("name", "").ifBlank {
+            tObj.optString("pressure", "").ifBlank {
+              tObj.optString("pressureBar", "")
+            }
+          }
+        }
+        if (tableName.isNotBlank() && tableName.toDoubleOrNull() != null) {
+          tableName = "$tableName bar"
+        }
+        if (tableName.isBlank()) {
+          tableName = "Tabela ${i + 1}"
+        }
+
+        val notes = tObj.optString("notes", tObj.optString("description", ""))
         val ptsList = mutableListOf<DeadTimePointDraft>()
-        val ptsArr = tObj.optJSONArray("points")
+        val ptsArr = tObj.optJSONArray("points") 
+          ?: tObj.optJSONArray("data") 
+          ?: tObj.optJSONArray("values")
+
         if (ptsArr != null) {
           for (j in 0 until ptsArr.length()) {
             val pObj = ptsArr.optJSONObject(j) ?: continue
-            val v = pObj.optString("voltage", "")
-            val ms = pObj.optString("timeMs", "")
+            val v = pObj.optString("voltage", pObj.optString("v", pObj.optString("volt", ""))).trim()
+            val ms = pObj.optString("timeMs", pObj.optString("ms", pObj.optString("time", pObj.optString("deadTime", "")))).trim()
             if (v.isNotBlank() && ms.isNotBlank()) {
               ptsList.add(DeadTimePointDraft(voltage = v, timeMs = ms))
             }
@@ -907,6 +958,19 @@ ZASADY:
           )
         }
       }
+    }
+
+    // Wypunktowane podsumowanie
+    val bulletsList = mutableListOf<String>()
+    val bulletsArr = json.optJSONArray("summaryBullets")
+    if (bulletsArr != null) {
+      for (i in 0 until bulletsArr.length()) {
+        val b = bulletsArr.optString(i, "")
+        if (b.isNotBlank()) bulletsList.add(b)
+      }
+    }
+    if (deadTimeTablesList.size > 1 && !bulletsList.any { it.contains("Dead Time", ignoreCase = true) }) {
+      bulletsList.add("Wyodrębniono ${deadTimeTablesList.size} tabel Dead Time dla różnych ciśnień")
     }
 
     // Calibration points
@@ -975,16 +1039,6 @@ ZASADY:
       }
     }
 
-    // Summary bullets
-    val bulletsList = mutableListOf<String>()
-    val bulletsArr = json.optJSONArray("summaryBullets")
-    if (bulletsArr != null) {
-      for (i in 0 until bulletsArr.length()) {
-        val b = bulletsArr.optString(i, "")
-        if (b.isNotBlank()) bulletsList.add(b)
-      }
-    }
-
     return ExtractedComponentData(
       name = json.optString("name").takeIf { it.isNotBlank() },
       partNumber = json.optString("partNumber").takeIf { it.isNotBlank() },
@@ -1023,7 +1077,7 @@ ZASADY:
       resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
 
       var sampleSize = 1
-      val maxDim = 1200
+      val maxDim = 1000
       while (bounds.outWidth / sampleSize > maxDim || bounds.outHeight / sampleSize > maxDim) {
         sampleSize *= 2
       }
@@ -1033,7 +1087,7 @@ ZASADY:
         ?: return null
 
       val baos = ByteArrayOutputStream()
-      bitmap.compress(Bitmap.CompressFormat.JPEG, 82, baos)
+      bitmap.compress(Bitmap.CompressFormat.JPEG, 76, baos)
       val bytes = baos.toByteArray()
       Base64.encodeToString(bytes, Base64.NO_WRAP)
     } catch (e: Exception) {

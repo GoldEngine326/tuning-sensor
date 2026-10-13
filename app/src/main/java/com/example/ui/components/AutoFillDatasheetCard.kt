@@ -547,7 +547,7 @@ fun AutoFillDatasheetCard(
           CircularProgressIndicator(color = TunerCyan, strokeWidth = 2.5.dp, modifier = Modifier.size(32.dp))
           Spacer(Modifier.height(8.dp))
           Text(text = processingMessage, fontSize = 12.sp, color = TunerCyan, fontWeight = FontWeight.SemiBold)
-          Text(text = "Proces może potrwać kilka sekund...", fontSize = 11.sp, color = TextMuted)
+          Text(text = "Odczytuję wszystkie wiersze i ciśnienia tabeli w języku polskim...", fontSize = 11.sp, color = TextMuted)
         }
       }
 
