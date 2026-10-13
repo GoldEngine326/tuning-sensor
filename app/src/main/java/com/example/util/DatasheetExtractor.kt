@@ -648,21 +648,21 @@ ZASADY:
     val contentObj = JSONObject()
     val parts = JSONArray()
 
-    val textPart = JSONObject().put("text", prompt)
     val inlineDataPart = JSONObject().put("inlineData", JSONObject().apply {
       put("mimeType", mimeType)
-      put("data", base64Data)
+      put("data", base64Data.trim())
     })
+    val textPart = JSONObject().put("text", prompt)
 
-    parts.put(textPart)
     parts.put(inlineDataPart)
+    parts.put(textPart)
     contentObj.put("parts", parts)
     contents.put(contentObj)
     root.put("contents", contents)
 
     val genConfig = JSONObject().apply {
       put("responseMimeType", "application/json")
-      put("temperature", 0.1)
+      put("temperature", 0.0)
     }
     root.put("generationConfig", genConfig)
 
@@ -683,11 +683,67 @@ ZASADY:
 
     val genConfig = JSONObject().apply {
       put("responseMimeType", "application/json")
-      put("temperature", 0.1)
+      put("temperature", 0.0)
     }
     root.put("generationConfig", genConfig)
 
     return root.toString()
+  }
+
+  /**
+   * Szybki test połączenia z Google Gemini API (używany w oknie dialogowym).
+   */
+  suspend fun testApiKey(context: Context, candidateKey: String? = null): Result<String> = withContext(Dispatchers.IO) {
+    val rawCandidate = candidateKey?.replace("\"", "")?.replace("'", "")?.trim()
+    val key = if (!rawCandidate.isNullOrBlank()) rawCandidate else getApiKey(context).replace("\"", "").replace("'", "").trim()
+
+    if (key.isBlank() || key == "MY_GEMINI_API_KEY" || key == "null") {
+      return@withContext Result.failure(IllegalStateException("Brak skonfigurowanego klucza API w aplikacji ani w panelu Secrets."))
+    }
+
+    val models = listOf("gemini-3.5-flash", "gemini-flash-latest", "gemini-3.6-flash")
+    val pingJson = JSONObject().apply {
+      put("contents", JSONArray().put(JSONObject().apply {
+        put("parts", JSONArray().put(JSONObject().apply {
+          put("text", "Odpowiedz słowem: OK")
+        }))
+      }))
+    }.toString()
+
+    val mediaType = "application/json; charset=utf-8".toMediaType()
+    val body = pingJson.toRequestBody(mediaType)
+
+    var lastErr = ""
+    for (model in models) {
+      val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$key"
+      val request = Request.Builder().url(url).post(body).build()
+      try {
+        val response = httpClient.newCall(request).execute()
+        if (response.isSuccessful) {
+          return@withContext Result.success("Sukces! Połączenie z Google Gemini działa idealnie (model: $model).")
+        } else {
+          val errBody = response.body?.string() ?: ""
+          val message = try {
+            JSONObject(errBody).optJSONObject("error")?.optString("message") ?: errBody
+          } catch (_: Exception) {
+            errBody
+          }
+
+          if (response.code == 400 && (message.contains("API key", ignoreCase = true) || message.contains("API_KEY_INVALID", ignoreCase = true))) {
+            return@withContext Result.failure(IllegalStateException("Google odrzuciło ten klucz (kod 400): Klucz nie istnieje lub jest nieprawidłowy. Upewnij się, że skopiowano go dokładnie bez spacji."))
+          }
+          if (response.code == 503) {
+            lastErr = "Serwery Gemini są chwilowo mocno obciążone (kod 503)."
+            continue
+          }
+          lastErr = "Błąd ($model, kod ${response.code}): $message"
+        }
+      } catch (e: Exception) {
+        lastErr = e.message ?: "Błąd połączenia z internetem."
+      }
+    }
+
+    Result.failure(IllegalStateException(lastErr))
   }
 
   private fun callGeminiApi(
@@ -695,17 +751,37 @@ ZASADY:
     primaryApiKey: String,
     requestJson: String
   ): Result<ExtractedComponentData> {
-    val buildKey = getBuildConfigKey()
+    val buildKey = getBuildConfigKey().replace("\"", "").replace("'", "").trim()
+    val customKey = (if (context != null) getCustomKeyOnly(context) else "").replace("\"", "").replace("'", "").trim()
+
     val keysToTry = mutableListOf<String>()
-    if (primaryApiKey.isNotBlank()) keysToTry.add(primaryApiKey)
-    if (buildKey.isNotBlank() && !keysToTry.contains(buildKey)) {
-      keysToTry.add(buildKey)
+    fun addKeyIfValid(k: String) {
+      val clean = k.replace("\"", "").replace("'", "").trim()
+      if (clean.isNotBlank() && clean != "MY_GEMINI_API_KEY" && clean != "null" && !keysToTry.contains(clean)) {
+        keysToTry.add(clean)
+      }
     }
 
-    val modelsToTry = listOf("gemini-3.5-flash", "gemini-flash-latest", "gemini-3.8-flash")
+    addKeyIfValid(primaryApiKey)
+    addKeyIfValid(buildKey)
+    addKeyIfValid(customKey)
+
+    if (keysToTry.isEmpty()) {
+      return Result.failure(IllegalStateException("Brak aktywnego klucza Gemini API. Skonfiguruj klucz w panelu Secrets w AI Studio lub podaj go w ikonie klucza."))
+    }
+
+    val modelsToTry = listOf(
+      "gemini-3.5-flash",
+      "gemini-flash-latest",
+      "gemini-3.6-flash",
+      "gemini-3.7-flash",
+      "gemini-3.8-flash",
+      "gemini-3.1-flash-lite-preview"
+    )
     val mediaType = "application/json; charset=utf-8".toMediaType()
     val requestBody = requestJson.toRequestBody(mediaType)
     var lastError = "Nieznany błąd zapytania AI"
+    var apiKeyWasRejected = false
 
     for (currentKey in keysToTry) {
       for (model in modelsToTry) {
@@ -721,7 +797,6 @@ ZASADY:
             val resString = response.body?.string() ?: continue
             val parsed = parseGeminiResponse(resString)
             if (parsed.isSuccess) {
-              // Jeśli użyto z sukcesem klucza wbudowanego, a w telefonie był zapisany inny (który zawiódł), czyścimy błędny klucz lokalny
               if (context != null && currentKey == buildKey && currentKey != primaryApiKey) {
                 clearCustomApiKey(context)
               }
@@ -734,22 +809,19 @@ ZASADY:
             } catch (_: Exception) {
               errBody
             }
+
+            // Sprawdź czy to błąd klucza API
+            if (response.code == 400 && (parsedError.contains("API key", ignoreCase = true) || parsedError.contains("API_KEY_INVALID", ignoreCase = true))) {
+              Log.w(TAG, "Klucz zwrócił błąd 400 API_KEY_INVALID dla $model: $parsedError")
+              apiKeyWasRejected = true
+              lastError = "Klucz API nie został zaakceptowany przez Google (kod 400): $parsedError"
+              break // przejdź do kolejnego klucza w keysToTry
+            }
+
             lastError = "Błąd ($model, kod ${response.code}): $parsedError"
 
-            // Jeśli klucz jest niepoprawny (kod 400 z błędem klucza), natychmiast próbujemy kolejnego klucza (np. wbudowanego z Secrets)
-            if (response.code == 400 && (parsedError.contains("API key", ignoreCase = true) || parsedError.contains("API_KEY_INVALID", ignoreCase = true))) {
-              Log.w(TAG, "Klucz zwrócił błąd 400 API_KEY_INVALID, próba zapasowego klucza...")
-              break // przejdź do następnego klucza w keysToTry
-            }
-
-            // Jeśli model jest chwilowo przeciążony (503), ma rate-limit (429) lub nieobsługiwany (404), próbujemy kolejnego modelu
-            if (response.code == 503 || response.code == 404 || response.code == 429) {
-              Log.w(TAG, "Model $model zwrócił ${response.code}, próba alternatywnego modelu...")
-              continue
-            } else {
-              // Dla innych błędów spróbuj pozostałych modeli/kluczy
-              continue
-            }
+            // Przy 503, 429, 404 lub innych błędach modelu spróbuj następnego modelu z listy
+            continue
           }
         } catch (e: Exception) {
           lastError = e.message ?: "Błąd połączenia sieciowego"
@@ -758,7 +830,13 @@ ZASADY:
       }
     }
 
-    return Result.failure(IllegalStateException(lastError))
+    val finalMessage = if (apiKeyWasRejected && keysToTry.size == 1) {
+      "Klucz Gemini API jest nieprawidłowy lub odrzucony przez Google (kod 400). Kliknij żółtą ikonę klucza u góry i przetestuj klucz lub wklej nowy darmowy klucz."
+    } else {
+      lastError
+    }
+
+    return Result.failure(IllegalStateException(finalMessage))
   }
 
   private fun parseGeminiResponse(jsonResponseString: String): Result<ExtractedComponentData> {

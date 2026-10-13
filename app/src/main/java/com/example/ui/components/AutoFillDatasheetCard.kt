@@ -108,6 +108,9 @@ fun AutoFillDatasheetCard(
   var extractedResult by remember { mutableStateOf<ExtractedComponentData?>(null) }
   var showApiKeyDialog by remember { mutableStateOf(false) }
   var customApiKeyInput by remember { mutableStateOf(DatasheetExtractor.getApiKey(context)) }
+  var isTestingKey by remember { mutableStateOf(false) }
+  var testKeyResult by remember { mutableStateOf<String?>(null) }
+  var testKeyIsSuccess by remember { mutableStateOf(false) }
 
   // 1. Rubryka: Zdjęcie z danymi
   var selectedDataImageUri by remember { mutableStateOf<Uri?>(null) }
@@ -572,10 +575,13 @@ fun AutoFillDatasheetCard(
               }
             }
 
-            if (errorMessage?.contains("klucz", ignoreCase = true) == true || errorMessage?.contains("API", ignoreCase = true) == true) {
+            if (errorMessage?.contains("klucz", ignoreCase = true) == true || errorMessage?.contains("API", ignoreCase = true) == true || errorMessage?.contains("kod", ignoreCase = true) == true) {
               Spacer(Modifier.height(8.dp))
               OutlinedButton(
-                onClick = { showApiKeyDialog = true },
+                onClick = {
+                  showApiKeyDialog = true
+                  testKeyResult = null
+                },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(6.dp),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = TunerCyan),
@@ -583,7 +589,7 @@ fun AutoFillDatasheetCard(
               ) {
                 Icon(Icons.Default.Key, contentDescription = null, modifier = Modifier.size(14.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Wprowadź lub pobierz darmowy klucz Gemini API", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text("🧪 Przetestuj klucz lub wprowadź nowy darmowy klucz", fontSize = 11.sp, fontWeight = FontWeight.Bold)
               }
             }
           }
@@ -796,6 +802,7 @@ fun AutoFillDatasheetCard(
                 onClick = {
                   DatasheetExtractor.clearCustomApiKey(context)
                   customApiKeyInput = ""
+                  testKeyResult = null
                   Toast.makeText(context, "Wyczyszczono klucz z telefonu. Aktywny jest klucz z projektu!", Toast.LENGTH_SHORT).show()
                 }
               ) {
@@ -807,7 +814,10 @@ fun AutoFillDatasheetCard(
 
           OutlinedTextField(
             value = customApiKeyInput,
-            onValueChange = { customApiKeyInput = it },
+            onValueChange = { 
+              customApiKeyInput = it
+              testKeyResult = null
+            },
             label = { Text("Klucz API (AIzaSy...)") },
             placeholder = { Text(if (isFromProject) "Aktywny klucz z Secrets (wklej by zmienić)" else "Wklej tutaj klucz") },
             modifier = Modifier.fillMaxWidth(),
@@ -821,6 +831,74 @@ fun AutoFillDatasheetCard(
               unfocusedContainerColor = DarkSurface
             )
           )
+
+          Spacer(Modifier.height(10.dp))
+
+          // Przycisk testowania klucza
+          OutlinedButton(
+            onClick = {
+              isTestingKey = true
+              testKeyResult = null
+              scope.launch {
+                val res = DatasheetExtractor.testApiKey(context, customApiKeyInput.ifBlank { null })
+                isTestingKey = false
+                res.onSuccess { msg ->
+                  testKeyIsSuccess = true
+                  testKeyResult = msg
+                }.onFailure { err ->
+                  testKeyIsSuccess = false
+                  testKeyResult = err.message ?: "Błąd testu połączenia."
+                }
+              }
+            },
+            enabled = !isTestingKey,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(8.dp),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = TunerCyan),
+            border = BorderStroke(1.dp, TunerCyan.copy(alpha = 0.7f))
+          ) {
+            if (isTestingKey) {
+              CircularProgressIndicator(modifier = Modifier.size(16.dp), color = TunerCyan, strokeWidth = 2.dp)
+              Spacer(Modifier.width(8.dp))
+              Text("Sprawdzam klucz w Google Gemini...", fontSize = 11.5.sp)
+            } else {
+              Icon(Icons.Default.Science, contentDescription = null, modifier = Modifier.size(16.dp))
+              Spacer(Modifier.width(6.dp))
+              Text("🧪 Przetestuj działanie klucza teraz", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+            }
+          }
+
+          // Wynik testu
+          if (testKeyResult != null) {
+            Spacer(Modifier.height(8.dp))
+            Card(
+              modifier = Modifier.fillMaxWidth(),
+              shape = RoundedCornerShape(6.dp),
+              colors = CardDefaults.cardColors(
+                containerColor = if (testKeyIsSuccess) TunerCyan.copy(alpha = 0.15f) else TuningRed.copy(alpha = 0.15f)
+              ),
+              border = BorderStroke(1.dp, if (testKeyIsSuccess) TunerCyan.copy(alpha = 0.6f) else TuningRed.copy(alpha = 0.6f))
+            ) {
+              Row(
+                modifier = Modifier.padding(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+              ) {
+                Icon(
+                  imageVector = if (testKeyIsSuccess) Icons.Default.Check else Icons.Default.Warning,
+                  contentDescription = null,
+                  tint = if (testKeyIsSuccess) TunerCyan else TuningRed,
+                  modifier = Modifier.size(16.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                  text = testKeyResult ?: "",
+                  fontSize = 11.sp,
+                  color = if (testKeyIsSuccess) TextPrimary else TuningRed,
+                  lineHeight = 14.sp
+                )
+              }
+            }
+          }
         }
       },
       confirmButton = {
