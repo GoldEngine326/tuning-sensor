@@ -112,7 +112,12 @@ data class TuningComponent(
   val boltSpacingWidthMm: Double? = null, // Rozstaw śrub bok 1 (szerokość) [mm] np. 60.0
   val boltSpacingHeightMm: Double? = null, // Rozstaw śrub bok 2 (wysokość) [mm] np. 60.0
   val boltDiagonal1Mm: Double? = null, // Przekątna 1 od środka do środka śruby [mm] np. 84.8
-  val boltDiagonal2Mm: Double? = null // Przekątna 2 od środka do środka śruby [mm] np. 84.8
+  val boltDiagonal2Mm: Double? = null, // Przekątna 2 od środka do środka śruby [mm] np. 84.8
+  // Rezystancja wtryskiwacza (High-Z vs Low-Z):
+  val injectorImpedance: String = "", // np. "Wysoko-omowy (High-Z)" lub "Nisko-omowy (Low-Z)"
+  // Spis wejść/wyjść ECU na płytce oraz wymiary:
+  val ecuOutputsCount: String = "", // np. "Wtryskiwacze: 6, Cewki: 6, AUX: 6, Wejścia analogowe: 8"
+  val ecuBoardDimensions: String = "" // np. "100 x 80 mm" (opcjonalnie)
 ) {
   fun allImages(): List<String> {
     return if (images.isNotEmpty()) images else if (imageUrl.isNotBlank()) listOf(imageUrl) else emptyList()

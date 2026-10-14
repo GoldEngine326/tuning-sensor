@@ -310,10 +310,10 @@ object DatasheetExtractor {
 
         // HTML or text webpage
         val textBody = body.string()
-        // Strip excessive HTML scripts and styles to save tokens
-        val cleanText = stripHtml(textBody).take(45000)
+        // Zachowaj pełną treść dokumentacji z tabelami pinoutu i wtyczek (do 200 000 znaków)
+        val cleanText = stripHtml(textBody).take(200000)
 
-        val fullPrompt = "$prompt\n\n--- ZAWARTOŚĆ STRONY Z LINKU ($trimmedUrl) ---\n$cleanText"
+        val fullPrompt = "$prompt\n\n--- ZAWARTOŚĆ STRONY Z DOKUMENTACJĄ ($trimmedUrl) ---\n$cleanText"
         val requestJson = buildGeminiTextOnlyRequest(fullPrompt)
         callGeminiApi(context, apiKey, requestJson)
       } catch (e: Exception) {
@@ -431,6 +431,99 @@ object DatasheetExtractor {
         )
       )
 
+      ComponentCategory.ECU -> ExtractedComponentData(
+        name = "uaEFI Standalone ECU (5 wtyczek Molex)",
+        partNumber = "uaEFI-v1.4",
+        category = ComponentCategory.ECU,
+        shortDescription = "Samodzielny sterownik silnika rusEFI uaEFI z 5 złączami Molex Mini-Fit Jr. i wbudowanym kontrolerem sondy LSU 4.9.",
+        pins = listOf(
+          // Wtyczka A (8 pinów)
+          PinDraft(pinNumber = "1", name = "Masa główna Power GND 1", description = "Masa zasilająca do bloku silnika", wireColor = "Czarny", type = PinType.GROUND, connectorName = "Wtyczka A"),
+          PinDraft(pinNumber = "2", name = "Masa główna Power GND 2", description = "Masa zasilająca do bloku silnika", wireColor = "Czarny", type = PinType.GROUND, connectorName = "Wtyczka A"),
+          PinDraft(pinNumber = "3", name = "Zasilanie +12V po stacyjce", description = "Sterowanie przekaźnikiem głównym / zapłon", wireColor = "Czerwony", type = PinType.POWER, connectorName = "Wtyczka A"),
+          PinDraft(pinNumber = "4", name = "+12V stałe z akumulatora", description = "Podtrzymanie pamięci zegara i NVRAM", wireColor = "Żółty", type = PinType.POWER, connectorName = "Wtyczka A"),
+          PinDraft(pinNumber = "5", name = "Wyjście przekaźnika pompy paliwa", description = "Low-Side Fuel Pump Relay", wireColor = "Niebieski", type = PinType.SIGNAL_OUT, connectorName = "Wtyczka A"),
+          PinDraft(pinNumber = "6", name = "Wyjście przekaźnika wentylatora 1", description = "Low-Side Fan Relay 1", wireColor = "Zielony", type = PinType.SIGNAL_OUT, connectorName = "Wtyczka A"),
+          PinDraft(pinNumber = "7", name = "Zawór wolnych obrotów Idle PWM", description = "Sterowanie zaworem IACV", wireColor = "Szary", type = PinType.SIGNAL_OUT, connectorName = "Wtyczka A"),
+          PinDraft(pinNumber = "8", name = "Zawór doładowania Boost Solenoid", description = "PWM Boost control", wireColor = "Fioletowy", type = PinType.SIGNAL_OUT, connectorName = "Wtyczka A"),
+
+          // Wtyczka B (18 pinów)
+          PinDraft(pinNumber = "1", name = "Wtryskiwacz 1 (INJ 1)", description = "Low-Side cylindra 1", wireColor = "Niebieski", type = PinType.INJECTOR, connectorName = "Wtyczka B"),
+          PinDraft(pinNumber = "2", name = "Wtryskiwacz 2 (INJ 2)", description = "Low-Side cylindra 2", wireColor = "Niebieski", type = PinType.INJECTOR, connectorName = "Wtyczka B"),
+          PinDraft(pinNumber = "3", name = "Wtryskiwacz 3 (INJ 3)", description = "Low-Side cylindra 3", wireColor = "Niebieski", type = PinType.INJECTOR, connectorName = "Wtyczka B"),
+          PinDraft(pinNumber = "4", name = "Wtryskiwacz 4 (INJ 4)", description = "Low-Side cylindra 4", wireColor = "Niebieski", type = PinType.INJECTOR, connectorName = "Wtyczka B"),
+          PinDraft(pinNumber = "5", name = "Wtryskiwacz 5 (INJ 5)", description = "Low-Side cylindra 5", wireColor = "Niebieski", type = PinType.INJECTOR, connectorName = "Wtyczka B"),
+          PinDraft(pinNumber = "6", name = "Wtryskiwacz 6 (INJ 6)", description = "Low-Side cylindra 6", wireColor = "Niebieski", type = PinType.INJECTOR, connectorName = "Wtyczka B"),
+          PinDraft(pinNumber = "7", name = "Cewka zapłonowa 1 (IGN 1)", description = "Sygnał 5V logic / wyzwalanie", wireColor = "Żółty", type = PinType.IGNITION, connectorName = "Wtyczka B"),
+          PinDraft(pinNumber = "8", name = "Cewka zapłonowa 2 (IGN 2)", description = "Sygnał 5V logic / wyzwalanie", wireColor = "Żółty", type = PinType.IGNITION, connectorName = "Wtyczka B"),
+          PinDraft(pinNumber = "9", name = "Cewka zapłonowa 3 (IGN 3)", description = "Sygnał 5V logic / wyzwalanie", wireColor = "Żółty", type = PinType.IGNITION, connectorName = "Wtyczka B"),
+          PinDraft(pinNumber = "10", name = "Cewka zapłonowa 4 (IGN 4)", description = "Sygnał 5V logic / wyzwalanie", wireColor = "Żółty", type = PinType.IGNITION, connectorName = "Wtyczka B"),
+          PinDraft(pinNumber = "11", name = "Cewka zapłonowa 5 (IGN 5)", description = "Sygnał 5V logic / wyzwalanie", wireColor = "Żółty", type = PinType.IGNITION, connectorName = "Wtyczka B"),
+          PinDraft(pinNumber = "12", name = "Cewka zapłonowa 6 (IGN 6)", description = "Sygnał 5V logic / wyzwalanie", wireColor = "Żółty", type = PinType.IGNITION, connectorName = "Wtyczka B"),
+          PinDraft(pinNumber = "13", name = "Wyjście pomocnicze AUX 1", description = "Low-Side driver", wireColor = "Biały", type = PinType.SIGNAL_OUT, connectorName = "Wtyczka B"),
+          PinDraft(pinNumber = "14", name = "Wyjście pomocnicze AUX 2", description = "Low-Side driver", wireColor = "Biały", type = PinType.SIGNAL_OUT, connectorName = "Wtyczka B"),
+          PinDraft(pinNumber = "15", name = "Wyjście pomocnicze AUX 3", description = "Low-Side driver", wireColor = "Biały", type = PinType.SIGNAL_OUT, connectorName = "Wtyczka B"),
+          PinDraft(pinNumber = "16", name = "Wyjście pomocnicze AUX 4", description = "Low-Side driver", wireColor = "Biały", type = PinType.SIGNAL_OUT, connectorName = "Wtyczka B"),
+          PinDraft(pinNumber = "17", name = "Obrotomierz TACHO", description = "Sygnał obrotów do licznika 12V pullup", wireColor = "Zielony", type = PinType.SIGNAL_OUT, connectorName = "Wtyczka B"),
+          PinDraft(pinNumber = "18", name = "Zawór zmiennych faz VVT 1", description = "Solenoid VVT Cam phasing PWM", wireColor = "Pomarańczowy", type = PinType.SIGNAL_OUT, connectorName = "Wtyczka B"),
+
+          // Wtyczka C (20 pinów)
+          PinDraft(pinNumber = "1", name = "+5V VREF zasilanie czujników", description = "Napięcie referencyjne z ECU", wireColor = "Czerwony", type = PinType.VREF, connectorName = "Wtyczka C"),
+          PinDraft(pinNumber = "2", name = "Masa sensoryczna Sensor GND", description = "Czysta masa analogowa czujników", wireColor = "Brązowy", type = PinType.SENSOR_GND, connectorName = "Wtyczka C"),
+          PinDraft(pinNumber = "3", name = "Czujnik temp. cieczy (CLT)", description = "Wejście analogowe NTC", wireColor = "Biały", type = PinType.SIGNAL_IN, connectorName = "Wtyczka C"),
+          PinDraft(pinNumber = "4", name = "Czujnik temp. dolotu (IAT)", description = "Wejście analogowe NTC", wireColor = "Biały", type = PinType.SIGNAL_IN, connectorName = "Wtyczka C"),
+          PinDraft(pinNumber = "5", name = "Położenie przepustnicy TPS 1", description = "Wejście analogowe 0-5V", wireColor = "Zielony", type = PinType.TPS, connectorName = "Wtyczka C"),
+          PinDraft(pinNumber = "6", name = "Czujnik ciśnienia MAP", description = "Wejście analogowe 0-5V", wireColor = "Żółty", type = PinType.SIGNAL_IN, connectorName = "Wtyczka C"),
+          PinDraft(pinNumber = "7", name = "Czujnik wału Crank Trigger +", description = "Sygnał VR+ lub Hall wału korbowego", wireColor = "Czarny", type = PinType.SIGNAL_IN, connectorName = "Wtyczka C"),
+          PinDraft(pinNumber = "8", name = "Czujnik wału Crank Trigger -", description = "Masa VR- lub ekran przewodu", wireColor = "Szary", type = PinType.SIGNAL_IN, connectorName = "Wtyczka C"),
+          PinDraft(pinNumber = "9", name = "Czujnik wałka Cam Trigger +", description = "Sygnał VR+ lub Hall wałka rozrządu", wireColor = "Niebieski", type = PinType.SIGNAL_IN, connectorName = "Wtyczka C"),
+          PinDraft(pinNumber = "10", name = "Czujnik wałka Cam Trigger -", description = "Masa VR- lub ekran", wireColor = "Szary", type = PinType.SIGNAL_IN, connectorName = "Wtyczka C"),
+          PinDraft(pinNumber = "11", name = "Czujnik ciśnienia oleju", description = "Wejście analogowe 0.5-4.5V", wireColor = "Fioletowy", type = PinType.SIGNAL_IN, connectorName = "Wtyczka C"),
+          PinDraft(pinNumber = "12", name = "Czujnik ciśnienia paliwa", description = "Wejście analogowe 0.5-4.5V", wireColor = "Pomarańczowy", type = PinType.SIGNAL_IN, connectorName = "Wtyczka C"),
+          PinDraft(pinNumber = "13", name = "Czujnik stukania Knock 1", description = "Wejście piezoelektryczne", wireColor = "Biały", type = PinType.SIGNAL_IN, connectorName = "Wtyczka C"),
+          PinDraft(pinNumber = "14", name = "Czujnik stukania Knock 2", description = "Wejście piezoelektryczne", wireColor = "Biały", type = PinType.SIGNAL_IN, connectorName = "Wtyczka C"),
+          PinDraft(pinNumber = "15", name = "Czujnik Flex Fuel (E85)", description = "Wejście częstotliwościowe 50-150Hz", wireColor = "Żółty", type = PinType.SIGNAL_IN, connectorName = "Wtyczka C"),
+          PinDraft(pinNumber = "16", name = "Przełącznik procedury startu (Launch)", description = "Zwierny do masy (Digital In)", wireColor = "Zielony", type = PinType.SIGNAL_IN, connectorName = "Wtyczka C"),
+          PinDraft(pinNumber = "17", name = "Wejście analogowe dodatkowe AIN 1", description = "0-5V Spare Analog", wireColor = "Różowy", type = PinType.SIGNAL_IN, connectorName = "Wtyczka C"),
+          PinDraft(pinNumber = "18", name = "Wejście analogowe dodatkowe AIN 2", description = "0-5V Spare Analog", wireColor = "Szary", type = PinType.SIGNAL_IN, connectorName = "Wtyczka C"),
+          PinDraft(pinNumber = "19", name = "Dodatkowa masa czujników Sensor GND 2", description = "Masa ekranów czujników", wireColor = "Brązowy", type = PinType.SENSOR_GND, connectorName = "Wtyczka C"),
+          PinDraft(pinNumber = "20", name = "Dodatkowe +5V VREF 2", description = "Drugie wyjście referencyjne", wireColor = "Czerwony", type = PinType.VREF, connectorName = "Wtyczka C"),
+
+          // Wtyczka D (16 pinów)
+          PinDraft(pinNumber = "1", name = "Przepustnica DBW Motor +", description = "Wyjście mostka H-Bridge silnika", wireColor = "Żółty", type = PinType.MOTOR, connectorName = "Wtyczka D"),
+          PinDraft(pinNumber = "2", name = "Przepustnica DBW Motor -", description = "Wyjście mostka H-Bridge silnika", wireColor = "Niebieski", type = PinType.MOTOR, connectorName = "Wtyczka D"),
+          PinDraft(pinNumber = "3", name = "Potencjometr przepustnicy TPS 2", description = "Ścieżka redundantna DBW", wireColor = "Biały", type = PinType.TPS, connectorName = "Wtyczka D"),
+          PinDraft(pinNumber = "4", name = "Pedał gazu PPS 1", description = "Główny potencjometr pedału gazu", wireColor = "Zielony", type = PinType.TPS, connectorName = "Wtyczka D"),
+          PinDraft(pinNumber = "5", name = "Pedał gazu PPS 2", description = "Drugi potencjometr pedału gazu", wireColor = "Pomarańczowy", type = PinType.TPS, connectorName = "Wtyczka D"),
+          PinDraft(pinNumber = "6", name = "Magistrala CAN 1 High", description = "CAN-Bus 2.0B 500kbps / 1Mbps", wireColor = "Żółty", type = PinType.COMMUNICATION, connectorName = "Wtyczka D"),
+          PinDraft(pinNumber = "7", name = "Magistrala CAN 1 Low", description = "CAN-Bus 2.0B 500kbps / 1Mbps", wireColor = "Zielony", type = PinType.COMMUNICATION, connectorName = "Wtyczka D"),
+          PinDraft(pinNumber = "8", name = "Magistrala CAN 2 High", description = "Druga magistrala CAN (opcja)", wireColor = "Biały", type = PinType.COMMUNICATION, connectorName = "Wtyczka D"),
+          PinDraft(pinNumber = "9", name = "Magistrala CAN 2 Low", description = "Druga magistrala CAN (opcja)", wireColor = "Niebieski", type = PinType.COMMUNICATION, connectorName = "Wtyczka D"),
+          PinDraft(pinNumber = "10", name = "Przełącznik map Map Switch", description = "Wybór mapy paliwa/zapłonu", wireColor = "Czarny", type = PinType.SIGNAL_IN, connectorName = "Wtyczka D"),
+          PinDraft(pinNumber = "11", name = "Czujnik prędkości pojazdu VSS", description = "Sygnał prędkości Hall", wireColor = "Szary", type = PinType.SIGNAL_IN, connectorName = "Wtyczka D"),
+          PinDraft(pinNumber = "12", name = "Wejście sprzęgła Clutch Switch", description = "Flat shift / Procedura", wireColor = "Czerwony", type = PinType.SIGNAL_IN, connectorName = "Wtyczka D"),
+          PinDraft(pinNumber = "13", name = "Zawór zmiennych faz VVT 2", description = "Drugi wałek rozrządu PWM", wireColor = "Fioletowy", type = PinType.SIGNAL_OUT, connectorName = "Wtyczka D"),
+          PinDraft(pinNumber = "14", name = "Wyjście kontrolki Check Engine", description = "Low-Side MIL lamp", wireColor = "Brązowy", type = PinType.SIGNAL_OUT, connectorName = "Wtyczka D"),
+          PinDraft(pinNumber = "15", name = "Masa sensoryczna DBW GND", description = "Dedykowana masa TPS2/PPS", wireColor = "Brązowy", type = PinType.SENSOR_GND, connectorName = "Wtyczka D"),
+          PinDraft(pinNumber = "16", name = "+5V VREF dla pedału PPS", description = "Dedykowane 5V dla pedału", wireColor = "Czerwony", type = PinType.VREF, connectorName = "Wtyczka D"),
+
+          // Wtyczka E (6 pinów)
+          PinDraft(pinNumber = "1", name = "Sonda LSU 4.9: IP", description = "Prąd pompy komórki Nernsta (Pump current)", wireColor = "Czerwony", type = PinType.SIGNAL_IN, connectorName = "Wtyczka E"),
+          PinDraft(pinNumber = "2", name = "Sonda LSU 4.9: VM", description = "Wirtualna masa sondy szerokopasmowej", wireColor = "Żółty", type = PinType.SENSOR_GND, connectorName = "Wtyczka E"),
+          PinDraft(pinNumber = "3", name = "Sonda LSU 4.9: H-", description = "Sterowanie masą grzałki sondy (PWM Heater)", wireColor = "Biały", type = PinType.HEATER, connectorName = "Wtyczka E"),
+          PinDraft(pinNumber = "4", name = "Sonda LSU 4.9: H+", description = "Zasilanie grzałki sondy (+12V z przekaźnika)", wireColor = "Szary", type = PinType.POWER, connectorName = "Wtyczka E"),
+          PinDraft(pinNumber = "5", name = "Sonda LSU 4.9: IA / RT", description = "Rezystor kalibracyjny wtyczki sondy", wireColor = "Zielony", type = PinType.SIGNAL_IN, connectorName = "Wtyczka E"),
+          PinDraft(pinNumber = "6", name = "Sonda LSU 4.9: UN / RE", description = "Napięcie ogniwa Nernsta (Nernst voltage)", wireColor = "Czarny", type = PinType.SIGNAL_IN, connectorName = "Wtyczka E")
+        ),
+        importantNotes = "• Sterownik silnika rusEFI uaEFI posiada 5 dedykowanych złączy Molex Mini-Fit Jr. 4.2mm:\n  - Wtyczka A (8 pinów): Zasilanie i przekaźniki\n  - Wtyczka B (18 pinów): Wtryskiwacze 1..6, Cewki zapłonowe 1..6, wyjścia AUX\n  - Wtyczka C (20 pinów): Czujniki analogowe CLT, IAT, TPS, MAP, czujniki wału Crank/Cam\n  - Wtyczka D (16 pinów): Przepustnica DBW, pedał PPS, podwójna magistrala CAN\n  - Wtyczka E (6 pinów): Zintegrowany kontroler szerokopasmowej sondy Bosch LSU 4.9.\n• Zasilanie sondy (H+) wymaga przekaźnika z bezpiecznikiem 5A.",
+        summaryBullets = listOf(
+          "✔ Rozpoznano: uaEFI Standalone ECU (rusEFI)",
+          "✔ Odczytano wszystkie 5 wtyczek Molex (Wtyczka A, B, C, D, E)",
+          "✔ Skonfigurowano łącznie 68 pinów sterownika silnika",
+          "✔ Skonfigurowano wbudowany kontroler szerokopasmowej sondy LSU 4.9"
+        )
+      )
+
       else -> ExtractedComponentData(
         name = "Bosch 3.0 Bar MAP Sensor",
         partNumber = "0 281 002 401",
@@ -473,32 +566,56 @@ object DatasheetExtractor {
     val resPoints = mutableListOf<CalPointDraft>()
     val pinsList = mutableListOf<PinDraft>()
 
+    var activeConnector = "Wtyczka A"
+
     for (line in lines) {
-      // Wykrywanie definicji pinów, np. "Pin 1: GND - Masa", "1 - Sygnał MAP"
-      val pinMatch = Regex("""^(?:Pin\s*)?(\d+)[\s:\-–—]+([^\-,:;]+)(?:[\-–—:;](.+))?""", RegexOption.IGNORE_CASE).find(line)
+      // Wykrywanie nagłówka nowej wtyczki, np. "Connector A", "Wtyczka 2", "### Connector C", "Złącze Molex B"
+      val connHeaderMatch = Regex("""^(?:#{1,4}\s*)?(?:Wtyczka|Connector|Złącze|Plug|Header)\s+([A-Za-z0-9\-_]+)""", RegexOption.IGNORE_CASE).find(line)
+      if (connHeaderMatch != null) {
+        val rawConn = connHeaderMatch.groupValues[1].uppercase()
+        activeConnector = "Wtyczka $rawConn"
+        continue
+      }
+
+      // Wykrywanie definicji pinów, np. "Pin 1: GND", "A1 - Main Relay", "B17 - Low-side", "1 | Sygnał MAP | Biały"
+      val pinMatch = Regex("""^(?:Pin\s*)?([A-Za-z]?\d+)[\s:\-–—|]+([^\-,:;|]+)(?:[\-–—:;|](.+))?""", RegexOption.IGNORE_CASE).find(line)
       if (pinMatch != null && !line.matches(Regex("""^[\d.,\s\t;|\-]+$"""))) {
-        val pinNum = pinMatch.groupValues[1]
+        val rawNum = pinMatch.groupValues[1]
         val pinName = pinMatch.groupValues[2].trim()
         val pinDesc = pinMatch.groupValues.getOrNull(3)?.trim() ?: ""
+
+        var pinConn = activeConnector
+        var cleanNum = rawNum
+
+        val letterMatch = Regex("""^([A-Ea-e])(\d+)$""").find(rawNum)
+        if (letterMatch != null) {
+          pinConn = "Wtyczka ${letterMatch.groupValues[1].uppercase()}"
+          cleanNum = letterMatch.groupValues[2]
+        }
+
         val pinType = when {
+          pinName.contains("can", ignoreCase = true) -> PinType.COMMUNICATION
+          pinName.contains("ign", ignoreCase = true) || pinName.contains("cewk", ignoreCase = true) || pinName.contains("zapłon", ignoreCase = true) -> PinType.IGNITION
+          pinName.contains("crank", ignoreCase = true) || pinName.contains("cam", ignoreCase = true) || pinName.contains("vr", ignoreCase = true) || pinName.contains("hall", ignoreCase = true) || pinName.contains("trigger", ignoreCase = true) -> PinType.SIGNAL_IN
           pinName.contains("gnd", ignoreCase = true) || pinName.contains("masa", ignoreCase = true) ->
             if (pinName.contains("sensor", ignoreCase = true)) PinType.SENSOR_GND else PinType.GROUND
           pinName.contains("5v", ignoreCase = true) || pinName.contains("vref", ignoreCase = true) -> PinType.VREF
-          pinName.contains("12v", ignoreCase = true) || pinName.contains("power", ignoreCase = true) || pinName.contains("zasil", ignoreCase = true) -> PinType.POWER
-          pinName.contains("tps", ignoreCase = true) -> PinType.TPS
+          pinName.contains("12v", ignoreCase = true) || pinName.contains("power", ignoreCase = true) || pinName.contains("zasil", ignoreCase = true) || pinName.contains("bateria", ignoreCase = true) || pinName.contains("relay", ignoreCase = true) -> PinType.POWER
+          pinName.contains("tps", ignoreCase = true) || pinName.contains("pps", ignoreCase = true) || pinName.contains("pedal", ignoreCase = true) -> PinType.TPS
           pinName.contains("inj", ignoreCase = true) || pinName.contains("wtrysk", ignoreCase = true) -> PinType.INJECTOR
-          pinName.contains("motor", ignoreCase = true) || pinName.contains("silnik", ignoreCase = true) -> PinType.MOTOR
-          pinName.contains("out", ignoreCase = true) || pinName.contains("sygnał wy", ignoreCase = true) -> PinType.SIGNAL_OUT
-          pinName.contains("in", ignoreCase = true) || pinName.contains("sygnał we", ignoreCase = true) -> PinType.SIGNAL_IN
+          pinName.contains("motor", ignoreCase = true) || pinName.contains("silnik", ignoreCase = true) || pinName.contains("dbw", ignoreCase = true) -> PinType.MOTOR
+          pinName.contains("lsu", ignoreCase = true) || pinName.contains("lambda", ignoreCase = true) || pinName.contains("heater", ignoreCase = true) -> PinType.HEATER
+          pinName.contains("out", ignoreCase = true) || pinName.contains("sygnał wy", ignoreCase = true) || pinName.contains("low-side", ignoreCase = true) || pinName.contains("ls", ignoreCase = true) -> PinType.SIGNAL_OUT
+          pinName.contains("in", ignoreCase = true) || pinName.contains("sygnał we", ignoreCase = true) || pinName.contains("clt", ignoreCase = true) || pinName.contains("iat", ignoreCase = true) -> PinType.SIGNAL_IN
           else -> PinType.OTHER
         }
         pinsList.add(
           PinDraft(
-            pinNumber = pinNum,
+            pinNumber = cleanNum,
             name = pinName,
             description = pinDesc,
             type = pinType,
-            connectorName = "Wtyczka A"
+            connectorName = pinConn
           )
         )
         continue
@@ -530,16 +647,21 @@ object DatasheetExtractor {
       return null
     }
 
+    val distinctConnectors = pinsList.map { it.connectorName.ifBlank { "Wtyczka A" } }.distinct()
     val inferredCategory = when {
+      distinctConnectors.size >= 2 -> ComponentCategory.ECU
       dtPoints.isNotEmpty() -> ComponentCategory.INJECTORS
       resPoints.isNotEmpty() -> ComponentCategory.TEMP_SENSOR
       calPoints.isNotEmpty() -> ComponentCategory.MAP_SENSOR
-      pinsList.size >= 4 -> ComponentCategory.THROTTLE
+      pinsList.size >= 5 && pinsList.any { it.type == PinType.MOTOR || it.type == PinType.TPS } -> ComponentCategory.THROTTLE
+      pinsList.size >= 12 -> ComponentCategory.ECU
       else -> null
     }
 
     val baseName = fileName.substringBeforeLast(".").replace("_", " ").replace("-", " ")
     val bullets = mutableListOf<String>()
+    if (distinctConnectors.size > 1) bullets.add("✔ Odczytano pinout ze wszystkich ${distinctConnectors.size} wtyczek (${distinctConnectors.joinToString(", ")}) — łącznie ${pinsList.size} pinów")
+    else if (pinsList.isNotEmpty()) bullets.add("✔ Wykryto pinout (${pinsList.size} pinów)")
     if (dtPoints.isNotEmpty()) bullets.add("✔ Odczytano lokalnie tabelę Dead Time (${dtPoints.size} punktów)")
     if (calPoints.isNotEmpty()) bullets.add("✔ Odczytano lokalnie kalibrację ciśnienia (${calPoints.size} punktów)")
     if (resPoints.isNotEmpty()) bullets.add("✔ Odczytano lokalnie rezystancję NTC (${resPoints.size} punktów)")
@@ -567,86 +689,71 @@ object DatasheetExtractor {
 
   private fun buildAutomotiveExtractionPrompt(): String {
     return """
-Jesteś profesjonalnym systemem OCR i inżynierem tuningu motorsportu, elektroniki samochodowej oraz samodzielnych sterowników silnika (Standalone ECU: EMU Black, Ecumaster, TunerStudio, Megasquirt, MaxxECU, Haltech, Link ECU).
-Twoim zadaniem jest bezbłędny, skrupulatny odczyt tabel, wykresów, schematów pinoutu oraz danych kalibracyjnych z załączonego zdjęcia lub dokumentu.
+Jesteś profesjonalnym systemem OCR i inżynierem tuningu motorsportu, elektroniki samochodowej oraz samodzielnych sterowników silnika (Standalone ECU: UAEFI, EMU Black, Ecumaster, TunerStudio, Megasquirt, MaxxECU, Haltech, Link ECU).
+Twoim zadaniem jest bezbłędny, skrupulatny i KOMPLETNY odczyt tabel, wykresów, schematów pinoutu oraz danych kalibracyjnych z załączonego zdjęcia, linku lub dokumentu.
 
 BARDZO WAŻNE WYMAGANIA JĘZYKOWE (JĘZYK POLSKI):
-1. Wszystkie generowane teksty, opisy (shortDescription), uwagi techniczne (importantNotes, notes), nazwy tabel (tableName) oraz wypunktowane podsumowanie (summaryBullets) MUSZĄ BYĆ BEZWZGLĘDNIE W 100% W JĘZYKU POLSKIM. Nigdy nie używaj języka angielskiego w opisach!
+1. Wszystkie generowane teksty, opisy (shortDescription), uwagi techniczne (importantNotes, notes), nazwy wtyczek (connectorName) i tabel (tableName) oraz wypunktowane podsumowanie (summaryBullets) MUSZĄ BYĆ BEZWZGLĘDNIE W 100% W JĘZYKU POLSKIM. Nigdy nie używaj języka angielskiego w opisach!
+
+BARDZO WAŻNA ZASADA DLA STEROWNIKÓW SILNIKA (ECU, UAEFI, STANDALONE, EMU BLACK, MAXXECU, SPEEDUINO) Z WIELOMA WTYCZKAMI / ZŁĄCZAMI:
+2. Jeśli urządzenie (np. standalone ECU UAEFI, EMU Black, Ecumaster, Speeduino, MaxxECU, moduł PDM, skrzynka przekaźników) posiada WIĘCEJ NIŻ JEDNĄ WTYCZKĘ:
+   - NP. W PRZYPADKU STEROWNIKA UAEFI: JEST TAM AŻ 5 WTYCZEK MOLEX:
+     * Wtyczka A: 8 pinów (Zasilanie, masy główne, przekaźnik główny)
+     * Wtyczka B: 18 pinów (Wtryskiwacze 1..6, Cewki zapłonowe 1..6, wyjścia Low-Side)
+     * Wtyczka C: 20 pinów (Czujniki analogowe: CLT, IAT, TPS, MAP, Trigger VR/Hall wału i wałka, VREF +5V, Sensor GND)
+     * Wtyczka D: 16 pinów (Przepustnica DBW H-Bridge Motor +/-, Pedał gazu PPS, magistrala CAN-Bus High/Low, wejścia cyfrowe)
+     * Wtyczka E: 6 pinów (Sonda szerokopasmowa Wideband Lambda LSU 4.9: IP, VM, H-, H+, IA/RT, UN/RE)
+   - BEZWZGLĘDNY NAKAZ: MUSISZ ODCZYTAĆ I ZWRÓCIĆ PINY DLA WSZYSTKICH 5 WTYCZEK BEZ WYJĄTKU!
+   - NIGDY NIE ZATRZYMUJ SIĘ PO PIERWSZEJ WTYCZCE! Jeśli na stronie/schemacie/zdjęciu jest 5 wtyczek, w tablicy "pins" lub "connectors" MUSZĄ znaleźć się piny dla DOKŁADNIE KAŻDEJ Z TYCH 5 WTYCZEK!
+   - W KAŻDYM obiekcie w tablicy "pins" MUSISZ podać pole "connectorName" z nazwą wtyczki, do której pin należy (np. "connectorName": "Wtyczka A", "connectorName": "Wtyczka B", "connectorName": "Wtyczka C", "connectorName": "Wtyczka D", "connectorName": "Wtyczka E" lub "Wtyczka 1", "Wtyczka 2", itd.).
+   - Numery pinów ("pinNumber") numeruj zgodnie z numeracją danej wtyczki (np. 1..8, 1..18, 1..20 itd. lub A1..A8, B1..B18 itd.).
+   - Prawidłowo przypisuj "type" dla każdego pinu:
+     * POWER (+12V, zasilanie po stacyjce, bateria)
+     * GROUND (masa silnika, masa zasilania)
+     * SENSOR_GND (masa czujników analogowych z ECU)
+     * VREF (+5V referencyjne dla czujników TPS, MAP, ciśnienia)
+     * INJECTOR (wyjścia sterujące wtryskiwaczami Low-Side)
+     * IGNITION (wyjścia zapłonowe / wyzwalające cewki)
+     * TPS (wejścia położenia przepustnicy TPS1 / TPS2 lub pedału PPS)
+     * TRIGGER (czujnik wału korbowego Crank VR/Hall lub wałka Cam)
+     * CAN_BUS (magistrala CAN High / CAN Low)
+     * SIGNAL_IN (wejścia czujników temperatury IAT/CLT, wejścia analogowe)
+     * SIGNAL_OUT (wyjścia zaworów Boost, VVT, pompy paliwa, obrotomierza)
+     * MOTOR (silnik przepustnicy DBW H-Bridge)
+     * HEATER (grzałka sondy Lambda PWM)
+     * OTHER (pozostałe sygnały)
 
 BARDZO WAŻNA ZASADA DLA WTRYSKIWACZY I TABEL DEAD TIME (BATERIA CIŚNIEŃ):
-2. Jeśli zdjęcie zawiera tabelę czasów martwych (Dead Time / Battery Voltage Offset / Latency / Czas martwy) dla WIELU CIŚNIEŃ (np. od 2.5 bar do 6.0 bar co 0.5 bar, lub w psi/kPa):
-   - MUSISZ WYODRĘBNIĆ WSZYSTKIE POZIOMY CIŚNIENIA! Każdy poziom ciśnienia na zdjęciu to OSOBNY ELEMENT w tablicy "deadTimeTables".
-   - Jeśli na zdjęciu jest 8 wierszy lub kolumn z różnymi ciśnieniami (np. 2.5 bar, 3.0 bar, 3.5 bar, 4.0 bar, 4.5 bar, 5.0 bar, 5.5 bar, 6.0 bar), tablica "deadTimeTables" MUSI zawierać DOKŁADNIE 8 OBIEKTÓW!
-   - Każdy obiekt w "deadTimeTables" reprezentuje jedno ciśnienie:
-     * "tableName": np. "2.5 bar", "3.0 bar", "3.5 bar", "4.0 bar", "4.5 bar", "5.0 bar", "5.5 bar", "6.0 bar" (lub z dopiskiem ciśnienia, np. "Tabela 2.5 bar").
-     * "notes": np. "Czas martwy dla ciśnienia 2.5 bar"
-     * "points": pełna lista punktów napięcie vs czas ms (np. dla 8V, 9V, 10V, 11V, 12V, 13V, 14V, 15V, 16V).
-   - NIGDY NIE POPRZESTAWAJ NA PIERWSZYM WIERSZU! Tuner w ECU potrzebuje pełnej macierzy dla wszystkich ciśnień (np. wszystkich 8 wierszy od 2.5b do 6.0b).
+3. Jeśli zdjęcie lub dokument zawiera tabelę czasów martwych (Dead Time / Battery Voltage Offset / Latency / Czas martwy) dla WIELU CIŚNIEŃ (np. od 2.5 bar do 6.0 bar co 0.5 bar – 8 wierszy lub kolumn):
+   - MUSISZ WYODRĘBNIĆ WSZYSTKIE POZIOMY CIŚNIENIA! Każdy poziom ciśnienia to OSOBNY ELEMENT w tablicy "deadTimeTables".
+   - Jeśli na zdjęciu jest 8 wierszy z ciśnieniami, tablica "deadTimeTables" MUSI zawierać DOKŁADNIE 8 OBIEKTÓW!
 
-ZASADY DLA INNYCH CZUJNIKÓW I PODZESPOŁÓW:
-3. Dla czujników MAP i ciśnienia: odczytaj całą charakterystykę kalibracyjną (kPa/bar vs V) do "calibrationPoints".
-4. Dla czujników temperatury (NTC): odczytaj pełną tabelę oporności (°C vs Ω) do "resistancePoints" oraz zaznacz pullupRequired = true.
-5. Dla przepustnic (DBW): odczytaj średnice, rozstawy śrub oraz schemat pinoutu.
-6. Numery pinów w "pins": wyłącznie czyste cyfry (np. "1", "2"), bez słowa "Pin".
+ZASADY DLA POZOSTAŁYCH CZUJNIKÓW:
+4. Dla czujników MAP i ciśnienia: odczytaj całą charakterystykę kalibracyjną (kPa/bar vs V) do "calibrationPoints".
+5. Dla czujników temperatury (NTC): odczytaj pełną tabelę oporności (°C vs Ω) do "resistancePoints" oraz zaznacz pullupRequired = true.
+6. Dla przepustnic (DBW): odczytaj średnice (wewnętrzna i zewnętrzna), rozstawy śrub montażowych oraz schemat pinoutu DBW.
 
 STRUKTURA ZWRACANEGO JSON:
+Możesz zwrócić piny płasko w "pins" (z polem "connectorName") LUB pogrupowane w tablicy "connectors":
 {
-  "name": "Pełna nazwa podzespołu w języku polskim (np. Wtryskiwacze Bosch EV14 630cc)",
-  "partNumber": "Numer katalogowy / OE (np. 0 280 158 117)",
-  "category": "Jeden z: MAP_SENSOR, INJECTORS, TEMP_SENSOR, THROTTLE, COILS, FUEL_PRESSURE, OIL_PRESSURE, LAMBDA, ECU, MODULES, OTHER",
+  "name": "Pełna nazwa podzespołu w języku polskim (np. UAEFI Standalone ECU lub Wtryskiwacze Bosch EV14 630cc)",
+  "partNumber": "Numer katalogowy / OE (lub nazwa modelu)",
+  "category": "Jeden z: ECU, MODULES, INJECTORS, MAP_SENSOR, TEMP_SENSOR, THROTTLE, COILS, FUEL_PRESSURE, OIL_PRESSURE, LAMBDA, OTHER",
   "shortDescription": "Zwięzły i dokładny opis podzespołu w języku polskim",
-  "flowRateCc": 630.0, // Wydajność w cc/min (dla wtryskiwaczy) lub null
-  "flowPressureBar": 3.0, // Ciśnienie bazowe testu w bar (np. 3.0) lub null
-  "deadTimeTables": [ // DLA KAŻDEGO POZIOMU CIŚNIENIA NA ZDJĘCIU OSOBNY OBIEKT!
-    {
-      "tableName": "2.5 bar",
-      "notes": "Czas martwy przy ciśnieniu 2.5 bar",
-      "points": [
-        {"voltage": "8.0", "timeMs": "2.10"},
-        {"voltage": "10.0", "timeMs": "1.52"},
-        {"voltage": "12.0", "timeMs": "1.18"},
-        {"voltage": "14.0", "timeMs": "0.95"},
-        {"voltage": "16.0", "timeMs": "0.78"}
-      ]
-    },
-    {
-      "tableName": "3.0 bar",
-      "notes": "Czas martwy przy ciśnieniu 3.0 bar",
-      "points": [
-        {"voltage": "8.0", "timeMs": "2.30"},
-        {"voltage": "10.0", "timeMs": "1.65"},
-        {"voltage": "12.0", "timeMs": "1.25"},
-        {"voltage": "14.0", "timeMs": "1.00"},
-        {"voltage": "16.0", "timeMs": "0.85"}
-      ]
-    },
-    {
-      "tableName": "3.5 bar",
-      "notes": "Czas martwy przy ciśnieniu 3.5 bar",
-      "points": [
-        {"voltage": "8.0", "timeMs": "2.45"},
-        {"voltage": "10.0", "timeMs": "1.75"},
-        {"voltage": "12.0", "timeMs": "1.32"},
-        {"voltage": "14.0", "timeMs": "1.05"},
-        {"voltage": "16.0", "timeMs": "0.90"}
-      ]
-    }
-    // ... i tak dalej dla WSZYSTKICH ciśnień widocznych w tabeli (np. 4.0b, 4.5b, 5.0b, 5.5b, 6.0b)!
-  ],
-  "calibrationPoints": [ // Dla czujników MAP, ciśnienia, TPS
-    {"inputValue": "20.0", "inputUnit": "kPa", "outputValue": "0.40", "outputUnit": "V"},
-    {"inputValue": "100.0", "inputUnit": "kPa", "outputValue": "1.60", "outputUnit": "V"}
-  ],
+  "flowRateCc": null,
+  "flowPressureBar": null,
+  "deadTimeTables": [],
+  "calibrationPoints": [],
   "calInputUnit": "kPa",
   "calOutputUnit": "V",
-  "charTitle": "Charakterystyka kalibracyjna ciśnienia",
+  "charTitle": "Charakterystyka kalibracyjna",
   "includeResistanceChar": false,
   "resInputUnit": "°C",
   "resOutputUnit": "Ω",
   "resCharTitle": "Charakterystyka opornościowa NTC",
   "resistancePoints": [],
   "pullupRequired": false,
-  "pullupValue": "2.49 kΩ do +5V VREF",
+  "pullupValue": "",
   "innerDiameterMm": null,
   "outerDiameterMm": null,
   "boltSpacingWidthMm": null,
@@ -656,16 +763,71 @@ STRUKTURA ZWRACANEGO JSON:
   "pins": [
     {
       "pinNumber": "1",
-      "name": "Zasilanie +12V",
-      "description": "Zasilanie cewki wtryskiwacza po stacyjce",
-      "wireColor": "Czerwony",
+      "connectorName": "Wtyczka A",
+      "name": "Masa główna Power GND",
+      "description": "Masa zasilająca sterownik",
+      "wireColor": "Czarny",
+      "type": "GROUND"
+    },
+    {
+      "pinNumber": "1",
+      "connectorName": "Wtyczka B",
+      "name": "Wtryskiwacz 1 (Inj 1)",
+      "description": "Wyjście wtryskiwacza cylindra 1 Low-Side",
+      "wireColor": "Niebieski",
       "type": "INJECTOR"
+    },
+    {
+      "pinNumber": "1",
+      "connectorName": "Wtyczka C",
+      "name": "+5V VREF",
+      "description": "Zasilanie referencyjne czujników TPS, MAP",
+      "wireColor": "Czerwony",
+      "type": "VREF"
+    },
+    {
+      "pinNumber": "1",
+      "connectorName": "Wtyczka D",
+      "name": "DBW Motor +",
+      "description": "Sterowanie silnikiem przepustnicy",
+      "wireColor": "Żółty",
+      "type": "MOTOR"
+    },
+    {
+      "pinNumber": "1",
+      "connectorName": "Wtyczka E",
+      "name": "LSU 4.9 IP",
+      "description": "Prąd pompy sondy szerokopasmowej",
+      "wireColor": "Czerwony",
+      "type": "SIGNAL_IN"
+    }
+  ],
+  "connectors": [
+    {
+      "name": "Wtyczka A",
+      "pins": [ ... ]
+    },
+    {
+      "name": "Wtyczka B",
+      "pins": [ ... ]
+    },
+    {
+      "name": "Wtyczka C",
+      "pins": [ ... ]
+    },
+    {
+      "name": "Wtyczka D",
+      "pins": [ ... ]
+    },
+    {
+      "name": "Wtyczka E",
+      "pins": [ ... ]
     }
   ],
   "importantNotes": "Ważne uwagi instalacyjne, zalecenia tunera w języku polskim",
-  "summaryBullets": [ // 2-5 punktów podsumowujących odczyt w języku polskim
-    "Rozpoznano wtryskiwacze i wydajność",
-    "Odczytano pełną tabelę Dead Time dla wszystkich poziomów ciśnienia"
+  "summaryBullets": [
+    "Rozpoznano urządzenie i wszystkie złącza",
+    "Odczytano pinout ze wszystkich wtyczek"
   ]
 }
 
@@ -694,6 +856,7 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
     val genConfig = JSONObject().apply {
       put("responseMimeType", "application/json")
       put("temperature", 0.0)
+      put("maxOutputTokens", 16384)
     }
     root.put("generationConfig", genConfig)
 
@@ -715,6 +878,7 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
     val genConfig = JSONObject().apply {
       put("responseMimeType", "application/json")
       put("temperature", 0.0)
+      put("maxOutputTokens", 16384)
     }
     root.put("generationConfig", genConfig)
 
@@ -1009,34 +1173,102 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
       }
     }
 
-    // Pins
+    // Pins and Multi-Connectors parsing
     val pinsList = mutableListOf<PinDraft>()
-    val pinsArr = json.optJSONArray("pins")
-    if (pinsArr != null) {
-      for (i in 0 until pinsArr.length()) {
-        val pObj = pinsArr.optJSONObject(i) ?: continue
-        val rawNum = pObj.optString("pinNumber", "${i + 1}").replace("Pin", "", ignoreCase = true).trim()
-        val pinNum = rawNum.ifBlank { "${i + 1}" }
-        val pName = pObj.optString("name", "")
-        val pDesc = pObj.optString("description", "")
-        val pColor = pObj.optString("wireColor", "")
-        val typeStr = pObj.optString("type", "OTHER")
-        val pinType = try {
-          PinType.valueOf(typeStr.uppercase())
+
+    fun parsePinObject(pObj: JSONObject, defaultConnector: String): PinDraft {
+      val rawNum = pObj.optString("pinNumber", "").replace("Pin", "", ignoreCase = true).trim()
+      val pName = pObj.optString("name", "").trim()
+      val pDesc = pObj.optString("description", "").trim()
+      val pColor = pObj.optString("wireColor", "").trim()
+      val typeStr = pObj.optString("type", "OTHER").uppercase().trim()
+      val pinType = when (typeStr) {
+        "CAN", "CAN_BUS", "CANBUS", "SERIAL", "COMM", "COMMUNICATION" -> PinType.COMMUNICATION
+        "TRIGGER", "CRANK", "CAM", "VR", "HALL" -> PinType.SIGNAL_IN
+        else -> try {
+          PinType.valueOf(typeStr)
         } catch (_: Exception) {
           PinType.OTHER
         }
-        pinsList.add(
-          PinDraft(
-            pinNumber = pinNum,
-            name = pName,
-            description = pDesc,
-            wireColor = pColor,
-            type = pinType,
-            connectorName = "Wtyczka A"
-          )
-        )
       }
+
+      var connName = pObj.optString("connectorName", pObj.optString("connector", defaultConnector)).trim()
+      var cleanPinNum = rawNum
+
+      val letterPrefixMatch = Regex("""^([A-Ea-e])[-_]?(\d+)$""").find(rawNum)
+      if (letterPrefixMatch != null) {
+        val letter = letterPrefixMatch.groupValues[1].uppercase()
+        cleanPinNum = letterPrefixMatch.groupValues[2]
+        if (connName.isBlank() || connName == "Wtyczka A" || connName == "Wtyczka 1") {
+          connName = "Wtyczka $letter"
+        }
+      } else if (connName.isBlank() || connName == "Wtyczka A") {
+        val textSearch = "$rawNum $pName $pDesc"
+        val namedMatch = Regex("""(?:wtyczka|connector|złącze|header|plug)\s*([A-Za-z0-9\-_]+)""", RegexOption.IGNORE_CASE).find(textSearch)
+        if (namedMatch != null) {
+          connName = "Wtyczka ${namedMatch.groupValues[1].uppercase()}"
+        }
+      }
+
+      if (cleanPinNum.isBlank()) {
+        cleanPinNum = "${pinsList.size + 1}"
+      }
+
+      return PinDraft(
+        pinNumber = cleanPinNum,
+        name = pName,
+        description = pDesc,
+        wireColor = pColor,
+        type = pinType,
+        connectorName = connName.ifBlank { "Wtyczka A" }
+      )
+    }
+
+    // 1. Direct pins array
+    val directPinsArr = json.optJSONArray("pins")
+    if (directPinsArr != null) {
+      for (i in 0 until directPinsArr.length()) {
+        val pObj = directPinsArr.optJSONObject(i) ?: continue
+        pinsList.add(parsePinObject(pObj, "Wtyczka A"))
+      }
+    }
+
+    // 2. Connectors array: "connectors": [ { "name": "Wtyczka A", "pins": [...] }, ... ]
+    val connArr = json.optJSONArray("connectors") ?: json.optJSONArray("wtyczki") ?: json.optJSONArray("plugs")
+    if (connArr != null) {
+      for (c in 0 until connArr.length()) {
+        val cObj = connArr.optJSONObject(c) ?: continue
+        val cName = cObj.optString("name", cObj.optString("connectorName", "Wtyczka ${('A'.code + c).toChar()}")).trim()
+        val cPins = cObj.optJSONArray("pins")
+        if (cPins != null) {
+          for (p in 0 until cPins.length()) {
+            val pObj = cPins.optJSONObject(p) ?: continue
+            pinsList.add(parsePinObject(pObj, cName))
+          }
+        }
+      }
+    }
+
+    // 3. Connectors object: "connectors": { "Wtyczka A": [...], "Wtyczka B": [...] }
+    val connObj = json.optJSONObject("connectors") ?: json.optJSONObject("wtyczki")
+    if (connObj != null) {
+      val keys = connObj.keys()
+      while (keys.hasNext()) {
+        val key = keys.next()
+        val arr = connObj.optJSONArray(key)
+        if (arr != null) {
+          for (p in 0 until arr.length()) {
+            val pObj = arr.optJSONObject(p) ?: continue
+            pinsList.add(parsePinObject(pObj, key))
+          }
+        }
+      }
+    }
+
+    // Aktualizacja podsumowania o odczytane wtyczki
+    val distinctConnectors = pinsList.map { it.connectorName.ifBlank { "Wtyczka A" } }.distinct()
+    if (distinctConnectors.size > 1 && !bulletsList.any { it.contains("wtycz", ignoreCase = true) }) {
+      bulletsList.add("✔ Odczytano pinout ze wszystkich ${distinctConnectors.size} wtyczek (${distinctConnectors.joinToString()}) — łącznie ${pinsList.size} pinów")
     }
 
     val isThrottle = category == ComponentCategory.THROTTLE
@@ -1046,12 +1278,14 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
     val isMap = category == ComponentCategory.MAP_SENSOR
     val isPress = category == ComponentCategory.FUEL_PRESSURE || category == ComponentCategory.OIL_PRESSURE
     val isLambda = category == ComponentCategory.LAMBDA
-    val isEcuOrMod = category == ComponentCategory.ECU || category == ComponentCategory.MODULES
+    val isEcuOrMod = category == ComponentCategory.ECU || category == ComponentCategory.MODULES || distinctConnectors.size >= 2
+
+    val resolvedCategory = if (category == null && distinctConnectors.size >= 2) ComponentCategory.ECU else category
 
     return ExtractedComponentData(
       name = json.optString("name").takeIf { it.isNotBlank() },
       partNumber = json.optString("partNumber").takeIf { it.isNotBlank() },
-      category = category,
+      category = resolvedCategory,
       shortDescription = json.optString("shortDescription").takeIf { it.isNotBlank() },
       flowRateCc = if (isInjectors) json.optDouble("flowRateCc").takeIf { !it.isNaN() && it > 0 } else null,
       flowPressureBar = if (isInjectors) json.optDouble("flowPressureBar").takeIf { !it.isNaN() && it > 0 } else null,
@@ -1082,35 +1316,72 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
   private fun compressImageToBase64(context: Context, uri: Uri): String? {
     return try {
       val resolver = context.contentResolver
-      val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-      resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+      val bytes = resolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
 
+      val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+      BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+
+      // Dla małych i średnich zdjęć (< 3.5 MB i < 3000px) zachowaj 100% ostrości oryginału
+      val maxDim = 3000
       var sampleSize = 1
-      val maxDim = 1000
-      while (bounds.outWidth / sampleSize > maxDim || bounds.outHeight / sampleSize > maxDim) {
+      while (bounds.outWidth / (sampleSize * 2) >= maxDim || bounds.outHeight / (sampleSize * 2) >= maxDim) {
         sampleSize *= 2
       }
 
+      if (sampleSize == 1 && bytes.size <= 3500000) {
+        return Base64.encodeToString(bytes, Base64.NO_WRAP)
+      }
+
       val decodeOptions = BitmapFactory.Options().apply { inSampleSize = sampleSize }
-      val bitmap = resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, decodeOptions) }
-        ?: return null
+      val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, decodeOptions) ?: return null
 
       val baos = ByteArrayOutputStream()
-      bitmap.compress(Bitmap.CompressFormat.JPEG, 76, baos)
-      val bytes = baos.toByteArray()
-      Base64.encodeToString(bytes, Base64.NO_WRAP)
+      // Wysoka jakość 92% (zamiast 76%), aby małe cyfry i napisy na schematach 5 wtyczek były idealnie czytelne dla OCR
+      bitmap.compress(Bitmap.CompressFormat.JPEG, 92, baos)
+      val compressedBytes = baos.toByteArray()
+      Base64.encodeToString(compressedBytes, Base64.NO_WRAP)
     } catch (e: Exception) {
       Log.e(TAG, "compressImageToBase64 error", e)
       null
     }
   }
 
-  private fun stripHtml(html: String): String {
-    return html
-      .replace(Regex("<script[\\s\\S]*?</script>", RegexOption.IGNORE_CASE), "")
-      .replace(Regex("<style[\\s\\S]*?</style>", RegexOption.IGNORE_CASE), "")
+  internal fun extractRichContentFromHtml(html: String): String {
+    // 1. Sprawdź, czy w tagach <script> znajduje się bezpośredni obiekt JSON z pinoutem (np. strony rusEFI / Hellen / interactive pinout)
+    val scriptMatches = Regex("""<script[^>]*>([\s\S]*?)</script>""", RegexOption.IGNORE_CASE).findAll(html)
+    val embeddedJsonSnippets = mutableListOf<String>()
+    for (match in scriptMatches) {
+      val code = match.groupValues[1]
+      if (code.contains("pins", ignoreCase = true) || code.contains("pinout", ignoreCase = true) || (code.contains("pin", ignoreCase = true) && (code.contains("name", ignoreCase = true) || code.contains("type", ignoreCase = true)))) {
+        // Wyodrębnij bloki zawierające dane pinoutu (do 40 000 znaków)
+        val candidate = code.take(40000)
+        embeddedJsonSnippets.add(candidate)
+      }
+    }
+
+    // 2. Zamień tabele HTML i nagłówki na czytelną strukturę wierszy z podziałem na wtyczki
+    var formatted = html
+      .replace(Regex("<tr[^>]*>", RegexOption.IGNORE_CASE), "\n")
+      .replace(Regex("</t[dh]>", RegexOption.IGNORE_CASE), " | ")
+      .replace(Regex("<h[1-6][^>]*>", RegexOption.IGNORE_CASE), "\n\n### ")
+      .replace(Regex("</h[1-6]>", RegexOption.IGNORE_CASE), "\n")
+      .replace(Regex("<br\\s*/?>", RegexOption.IGNORE_CASE), "\n")
+      .replace(Regex("<p[^>]*>", RegexOption.IGNORE_CASE), "\n\n")
+      .replace(Regex("<script[\\s\\S]*?</script>", RegexOption.IGNORE_CASE), " ")
+      .replace(Regex("<style[\\s\\S]*?</style>", RegexOption.IGNORE_CASE), " ")
       .replace(Regex("<[^>]+>"), " ")
-      .replace(Regex("\\s+"), " ")
+      .replace(Regex("[ \t]+"), " ")
+      .replace(Regex("\n{3,}"), "\n\n")
       .trim()
+
+    if (embeddedJsonSnippets.isNotEmpty()) {
+      formatted += "\n\n--- SUROWE DANE PINOUTU Z WYKRYTYCH SKRYPTÓW STRONY ---\n" + embeddedJsonSnippets.joinToString("\n---\n")
+    }
+
+    return formatted
+  }
+
+  private fun stripHtml(html: String): String {
+    return extractRichContentFromHtml(html)
   }
 }

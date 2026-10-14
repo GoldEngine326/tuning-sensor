@@ -180,7 +180,10 @@ fun AddComponentDialog(
     boltSpacingWidthMm: Double?,
     boltSpacingHeightMm: Double?,
     boltDiagonal1Mm: Double?,
-    boltDiagonal2Mm: Double?
+    boltDiagonal2Mm: Double?,
+    injectorImpedance: String,
+    ecuOutputsCount: String,
+    ecuBoardDimensions: String
   ) -> Unit,
   onDelete: (() -> Unit)? = null,
   modifier: Modifier = Modifier
@@ -473,9 +476,25 @@ fun AddComponentDialog(
     mutableStateOf(existingComponent?.boltDiagonal2Mm?.let { if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() } ?: "")
   }
 
-  // Flagi dla czujników zespolonych (np. T-MAP lub kombi-sensor ciśnienia i temperatury oleju)
+  // Rezystancja wtryskiwacza (High-Z vs Low-Z)
+  var injectorImpedance by remember(compKey) {
+    mutableStateOf(existingComponent?.injectorImpedance ?: "")
+  }
+
+  // Spis wejść/wyjść sterownika ECU i opcjonalne wymiary płytki PCB
+  var ecuOutputsCount by remember(compKey) {
+    mutableStateOf(existingComponent?.ecuOutputsCount ?: "")
+  }
+  var ecuBoardDimensions by remember(compKey) {
+    mutableStateOf(existingComponent?.ecuBoardDimensions ?: "")
+  }
+
+  // Flagi dla czujników zespolonych (np. T-MAP lub kombi-sensor ciśnienia i temperatury paliwa / oleju)
   var isComboTmapSensor by remember(compKey) {
     mutableStateOf(existingComponent?.category == ComponentCategory.MAP_SENSOR && existingComponent.resistanceCharacteristic != null)
+  }
+  var isComboFuelPressureTempSensor by remember(compKey) {
+    mutableStateOf(existingComponent?.category == ComponentCategory.FUEL_PRESSURE && existingComponent.resistanceCharacteristic != null)
   }
   var isComboOilPressureTempSensor by remember(compKey) {
     mutableStateOf(existingComponent?.category == ComponentCategory.OIL_PRESSURE && existingComponent.resistanceCharacteristic != null)
@@ -554,13 +573,14 @@ fun AddComponentDialog(
                 )
               }
               // 1. Główna charakterystyka - tylko dla kategorii, które jej potrzebują
+              // 1. Główna charakterystyka - tylko dla kategorii, które jej potrzebują
               val finalCharacteristic = when (category) {
                 ComponentCategory.COILS -> {
                   CharacteristicInfo(
                     type = CharType.DWELL_TIME,
-                    title = charTitle.ifBlank { "Tabela Dwell Time" },
-                    inputLabel = "Czas ładowania ($tableInputUnit)",
-                    outputLabel = "Napięcie ($tableOutputUnit)",
+                    title = "Tabela Dwell Time do napięcia",
+                    inputLabel = "Napięcie ($tableInputUnit)",
+                    outputLabel = "Dwell Time ($tableOutputUnit)",
                     points = calPointsList.map {
                       CalibrationPoint(
                         inputValue = it.inVal.trim(),
@@ -575,8 +595,42 @@ fun AddComponentDialog(
                 ComponentCategory.MAP_SENSOR, ComponentCategory.FUEL_PRESSURE, ComponentCategory.OIL_PRESSURE -> {
                   CharacteristicInfo(
                     type = CharType.VOLTAGE_PRESSURE,
-                    title = charTitle.ifBlank { "Kalibracja liniowa" },
+                    title = "Kalibracja liniowa ciśnienia (kPa vs V)",
                     inputLabel = "Ciśnienie ($tableInputUnit)",
+                    outputLabel = "Napięcie ($tableOutputUnit)",
+                    points = calPointsList.map {
+                      CalibrationPoint(
+                        inputValue = it.inVal.trim(),
+                        inputUnit = tableInputUnit.trim(),
+                        outputValue = it.outVal.trim(),
+                        outputUnit = tableOutputUnit.trim()
+                      )
+                    },
+                    formulaOrNotes = charNotes
+                  )
+                }
+                ComponentCategory.TEMP_SENSOR -> {
+                  CharacteristicInfo(
+                    type = CharType.RESISTANCE_TEMP,
+                    title = "Charakterystyka temperatury do oporności",
+                    inputLabel = "Temperatura (℃)",
+                    outputLabel = "Rezystancja ($tableOutputUnit)",
+                    points = calPointsList.map {
+                      CalibrationPoint(
+                        inputValue = it.inVal.trim(),
+                        inputUnit = "°C",
+                        outputValue = it.outVal.trim(),
+                        outputUnit = tableOutputUnit.trim()
+                      )
+                    },
+                    formulaOrNotes = ""
+                  )
+                }
+                ComponentCategory.MODULES -> {
+                  CharacteristicInfo(
+                    type = CharType.VOLTAGE_PRESSURE,
+                    title = "Charakterystyka napięciowa modułu",
+                    inputLabel = "Wejście ($tableInputUnit)",
                     outputLabel = "Napięcie ($tableOutputUnit)",
                     points = calPointsList.map {
                       CalibrationPoint(
@@ -618,7 +672,6 @@ fun AddComponentDialog(
                   }
                 }
                 else -> {
-                  // THROTTLE, INJECTORS, TEMP_SENSOR, LAMBDA, ECU, MODULES nie mają ogólnej tabeli napięciowej
                   CharacteristicInfo(
                     type = CharType.OTHER,
                     title = "",
@@ -630,12 +683,12 @@ fun AddComponentDialog(
                 }
               }
 
-              // 2. Charakterystyka opornościowa NTC - TYLKO dla TEMP_SENSOR lub kombi T-MAP/kombi olej
+              // 2. Charakterystyka opornościowa - dla czujników z wbudowanym pomiarem temp oraz modułów
               val finalResistanceChar = when {
-                category == ComponentCategory.TEMP_SENSOR -> {
+                category == ComponentCategory.MAP_SENSOR && isComboTmapSensor -> {
                   CharacteristicInfo(
                     type = CharType.RESISTANCE_TEMP,
-                    title = resCharTitle.ifBlank { "Charakterystyka opornościowa NTC" },
+                    title = "Charakterystyka opornościowa IAT (NTC)",
                     inputLabel = "Temperatura ($resTableInputUnit)",
                     outputLabel = "Opór ($resTableOutputUnit)",
                     points = resPointsList.map {
@@ -646,13 +699,13 @@ fun AddComponentDialog(
                         outputUnit = resTableOutputUnit.trim()
                       )
                     },
-                    formulaOrNotes = resCharNotes
+                    formulaOrNotes = ""
                   )
                 }
-                category == ComponentCategory.MAP_SENSOR && isComboTmapSensor && includeResistanceChar -> {
+                category == ComponentCategory.FUEL_PRESSURE && isComboFuelPressureTempSensor -> {
                   CharacteristicInfo(
                     type = CharType.RESISTANCE_TEMP,
-                    title = resCharTitle.ifBlank { "Charakterystyka opornościowa IAT (NTC)" },
+                    title = "Charakterystyka temperatury paliwa (NTC)",
                     inputLabel = "Temperatura ($resTableInputUnit)",
                     outputLabel = "Opór ($resTableOutputUnit)",
                     points = resPointsList.map {
@@ -663,13 +716,13 @@ fun AddComponentDialog(
                         outputUnit = resTableOutputUnit.trim()
                       )
                     },
-                    formulaOrNotes = resCharNotes
+                    formulaOrNotes = ""
                   )
                 }
-                category == ComponentCategory.OIL_PRESSURE && isComboOilPressureTempSensor && includeResistanceChar -> {
+                category == ComponentCategory.OIL_PRESSURE && isComboOilPressureTempSensor -> {
                   CharacteristicInfo(
                     type = CharType.RESISTANCE_TEMP,
-                    title = resCharTitle.ifBlank { "Charakterystyka temperatury oleju (NTC)" },
+                    title = "Charakterystyka temperatury oleju (NTC)",
                     inputLabel = "Temperatura ($resTableInputUnit)",
                     outputLabel = "Opór ($resTableOutputUnit)",
                     points = resPointsList.map {
@@ -680,7 +733,24 @@ fun AddComponentDialog(
                         outputUnit = resTableOutputUnit.trim()
                       )
                     },
-                    formulaOrNotes = resCharNotes
+                    formulaOrNotes = ""
+                  )
+                }
+                category == ComponentCategory.MODULES -> {
+                  CharacteristicInfo(
+                    type = CharType.RESISTANCE_TEMP,
+                    title = "Charakterystyka opornościowa modułu",
+                    inputLabel = "Wejście ($resTableInputUnit)",
+                    outputLabel = "Oporność ($resTableOutputUnit)",
+                    points = resPointsList.map {
+                      CalibrationPoint(
+                        inputValue = it.inVal.trim(),
+                        inputUnit = resTableInputUnit.trim(),
+                        outputValue = it.outVal.trim(),
+                        outputUnit = resTableOutputUnit.trim()
+                      )
+                    },
+                    formulaOrNotes = ""
                   )
                 }
                 category == ComponentCategory.OTHER && showGenericOtherResistance -> {
@@ -791,7 +861,10 @@ fun AddComponentDialog(
                 parsedBoltWidth,
                 parsedBoltHeight,
                 parsedDiag1,
-                parsedDiag2
+                parsedDiag2,
+                injectorImpedance.trim(),
+                ecuOutputsCount.trim(),
+                ecuBoardDimensions.trim()
               )
             },
             colors = ButtonDefaults.buttonColors(containerColor = if (isEditing) TunerAmber else TuningRed),
@@ -896,6 +969,13 @@ fun AddComponentDialog(
           if (data.pins.isNotEmpty()) {
             pinsList.clear()
             pinsList.addAll(data.pins)
+
+            // Automatycznie zaktualizuj listę wtyczek (np. gdy sterownik ECU posiada 5 wtyczek)
+            val extractedConnectors = data.pins.map { it.connectorName.ifBlank { "Wtyczka A" } }.distinct()
+            if (extractedConnectors.isNotEmpty()) {
+              connectorsList.clear()
+              connectorsList.addAll(extractedConnectors)
+            }
           }
           data.importantNotes?.let {
             if (it.isNotBlank()) {

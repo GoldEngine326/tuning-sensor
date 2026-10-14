@@ -206,7 +206,10 @@ class TuningRepository(
     boltSpacingWidthMm: Double? = null,
     boltSpacingHeightMm: Double? = null,
     boltDiagonal1Mm: Double? = null,
-    boltDiagonal2Mm: Double? = null
+    boltDiagonal2Mm: Double? = null,
+    injectorImpedance: String = "",
+    ecuOutputsCount: String = "",
+    ecuBoardDimensions: String = ""
   ): TuningComponent {
     val uid = requireUserId()
     val newId = "sensor_" + UUID.randomUUID().toString().replace("-", "").take(12)
@@ -259,7 +262,10 @@ class TuningRepository(
       boltSpacingWidthMm = boltSpacingWidthMm,
       boltSpacingHeightMm = boltSpacingHeightMm,
       boltDiagonal1Mm = boltDiagonal1Mm,
-      boltDiagonal2Mm = boltDiagonal2Mm
+      boltDiagonal2Mm = boltDiagonal2Mm,
+      injectorImpedance = injectorImpedance.trim(),
+      ecuOutputsCount = ecuOutputsCount.trim(),
+      ecuBoardDimensions = ecuBoardDimensions.trim()
     )
 
     val payload = createFirestorePayload(newComp, uid, isCreate = true)
@@ -299,7 +305,10 @@ class TuningRepository(
     boltSpacingWidthMm: Double? = null,
     boltSpacingHeightMm: Double? = null,
     boltDiagonal1Mm: Double? = null,
-    boltDiagonal2Mm: Double? = null
+    boltDiagonal2Mm: Double? = null,
+    injectorImpedance: String = "",
+    ecuOutputsCount: String = "",
+    ecuBoardDimensions: String = ""
   ): TuningComponent? {
     requireUserId()
     val existing = _components.value.find { it.id == id } ?: return null
@@ -333,7 +342,10 @@ class TuningRepository(
       boltSpacingWidthMm = boltSpacingWidthMm,
       boltSpacingHeightMm = boltSpacingHeightMm,
       boltDiagonal1Mm = boltDiagonal1Mm,
-      boltDiagonal2Mm = boltDiagonal2Mm
+      boltDiagonal2Mm = boltDiagonal2Mm,
+      injectorImpedance = injectorImpedance.trim(),
+      ecuOutputsCount = ecuOutputsCount.trim(),
+      ecuBoardDimensions = ecuBoardDimensions.trim()
     )
 
     _components.value = _components.value.map {
@@ -396,6 +408,15 @@ class TuningRepository(
     }
     if (updatedComp.boltDiagonal2Mm != null) {
       updatePayload["boltDiagonal2Mm"] = updatedComp.boltDiagonal2Mm
+    }
+    if (updatedComp.injectorImpedance.isNotBlank()) {
+      updatePayload["injectorImpedance"] = updatedComp.injectorImpedance
+    }
+    if (updatedComp.ecuOutputsCount.isNotBlank()) {
+      updatePayload["ecuOutputsCount"] = updatedComp.ecuOutputsCount
+    }
+    if (updatedComp.ecuBoardDimensions.isNotBlank()) {
+      updatePayload["ecuBoardDimensions"] = updatedComp.ecuBoardDimensions
     }
 
     db.collection("sensors").document(id).update(updatePayload)
@@ -526,6 +547,15 @@ class TuningRepository(
     }
     if (component.boltDiagonal2Mm != null) {
       map["boltDiagonal2Mm"] = component.boltDiagonal2Mm
+    }
+    if (component.injectorImpedance.isNotBlank()) {
+      map["injectorImpedance"] = component.injectorImpedance
+    }
+    if (component.ecuOutputsCount.isNotBlank()) {
+      map["ecuOutputsCount"] = component.ecuOutputsCount
+    }
+    if (component.ecuBoardDimensions.isNotBlank()) {
+      map["ecuBoardDimensions"] = component.ecuBoardDimensions
     }
 
     return map
@@ -663,7 +693,10 @@ class TuningRepository(
       boltSpacingWidthMm = (data["boltSpacingWidthMm"] as? Number)?.toDouble(),
       boltSpacingHeightMm = (data["boltSpacingHeightMm"] as? Number)?.toDouble(),
       boltDiagonal1Mm = (data["boltDiagonal1Mm"] as? Number)?.toDouble(),
-      boltDiagonal2Mm = (data["boltDiagonal2Mm"] as? Number)?.toDouble()
+      boltDiagonal2Mm = (data["boltDiagonal2Mm"] as? Number)?.toDouble(),
+      injectorImpedance = data["injectorImpedance"] as? String ?: "",
+      ecuOutputsCount = data["ecuOutputsCount"] as? String ?: "",
+      ecuBoardDimensions = data["ecuBoardDimensions"] as? String ?: ""
     )
   }
 
