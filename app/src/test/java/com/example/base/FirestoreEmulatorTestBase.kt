@@ -29,8 +29,22 @@ abstract class FirestoreEmulatorTestBase {
   protected lateinit var auth: FirebaseAuth
   protected lateinit var databaseId: String
 
+  private fun isPortOpen(host: String, port: Int): Boolean {
+    return try {
+      java.net.Socket().use { socket ->
+        socket.connect(java.net.InetSocketAddress(host, port), 200)
+        true
+      }
+    } catch (_: Exception) {
+      false
+    }
+  }
+
   @Before
   open fun setUpFirebase() {
+    val isEmulatorRunning = isPortOpen(EMULATOR_HOST, FIRESTORE_PORT) && isPortOpen(EMULATOR_HOST, AUTH_PORT)
+    org.junit.Assume.assumeTrue("Firebase emulator is not running", isEmulatorRunning)
+
     val context = ApplicationProvider.getApplicationContext<Context>()
     val resId = context.resources.getIdentifier("firestore_database_id", "string", context.packageName)
     databaseId = if (resId != 0) context.getString(resId) else "demo-database"
@@ -63,15 +77,21 @@ abstract class FirestoreEmulatorTestBase {
 
   @After
   open fun tearDownFirebase() {
-    auth.signOut()
+    if (::auth.isInitialized) {
+      auth.signOut()
+    }
   }
 
   protected suspend fun signInTestUser(email: String): String = withContext(Dispatchers.IO) {
     withTimeout(AUTH_TIMEOUT_MS) {
       val result = try {
         auth.signInWithEmailAndPassword(email, DEFAULT_PASSWORD).await()
-      } catch (unused: FirebaseAuthInvalidUserException) {
-        auth.createUserWithEmailAndPassword(email, DEFAULT_PASSWORD).await()
+      } catch (_: Exception) {
+        try {
+          auth.createUserWithEmailAndPassword(email, DEFAULT_PASSWORD).await()
+        } catch (_: Exception) {
+          auth.signInWithEmailAndPassword(email, DEFAULT_PASSWORD).await()
+        }
       }
       checkNotNull(result.user?.uid) { "User auth failed" }
     }

@@ -498,8 +498,12 @@ fun DetailScreen(
 
       Spacer(Modifier.height(16.dp))
 
-      // Pull-up Warning for Temperature Sensors (IAT / CLT)
-      if (component.pullupRequired) {
+      // Pull-up Warning for Temperature Sensors (IAT / CLT) and combo sensors
+      val canHavePullup = component.category == ComponentCategory.TEMP_SENSOR ||
+          (component.category == ComponentCategory.MAP_SENSOR && component.resistanceCharacteristic != null) ||
+          (component.category == ComponentCategory.OIL_PRESSURE && component.resistanceCharacteristic != null) ||
+          (component.category == ComponentCategory.OTHER && component.pullupRequired)
+      if (component.pullupRequired && canHavePullup) {
         PullupWarningCard(
           recommendedValue = component.pullupRecommendedValue,
           customNote = component.pullupNote,
@@ -520,7 +524,7 @@ fun DetailScreen(
       Spacer(Modifier.height(20.dp))
 
       // WYMIARY PRZEPUSTNICY I ROZSTAW ŚRUB DLA KATEGORII PRZEPUSTNICA
-      if (component.category == ComponentCategory.THROTTLE || component.innerDiameterMm != null || component.boltSpacingWidthMm != null) {
+      if (component.category == ComponentCategory.THROTTLE) {
         ThrottleDimensionsCard(
           innerDiameterMm = component.innerDiameterMm,
           outerDiameterMm = component.outerDiameterMm,
@@ -534,7 +538,7 @@ fun DetailScreen(
       }
 
       // 3. WYDAJNOŚĆ WTRYSKIWACZA & KALKULATOR CIŚNIENIA DLA WTRYSKIWACZY
-      if (component.category == ComponentCategory.INJECTORS || component.flowRateCc != null) {
+      if (component.category == ComponentCategory.INJECTORS && component.flowRateCc != null) {
         InjectorFlowCalculatorCard(
           nominalFlowRateCc = component.flowRateCc,
           nominalPressureBar = component.flowPressureBar,
@@ -543,15 +547,19 @@ fun DetailScreen(
         Spacer(Modifier.height(20.dp))
       }
 
-      // 4. CHARAKTERYSTYKA DLA WTRYSKIWACZY (DEAD TIME) LUB GŁÓWNA CHARAKTERYSTYKA (NAPIĘCIOWA / DWELL / KALIBRACJA)
-      if (component.category == ComponentCategory.INJECTORS || component.deadTimeTables.isNotEmpty()) {
+      // 4. CHARAKTERYSTYKA DLA WTRYSKIWACZY (DEAD TIME) LUB GŁÓWNA CHARAKTERYSTYKA (DWELL / KALIBRACJA MAP / CIŚNIENIE)
+      if (component.category == ComponentCategory.INJECTORS) {
         if (component.deadTimeTables.isNotEmpty()) {
           DeadTimeTablesView(
             tables = component.deadTimeTables,
             modifier = Modifier.testTag("detail_dead_time_tables_view")
           )
         }
-      } else if (component.category != ComponentCategory.THROTTLE && component.characteristic.points.isNotEmpty()) {
+      } else if ((component.category == ComponentCategory.COILS ||
+          component.category == ComponentCategory.MAP_SENSOR ||
+          component.category == ComponentCategory.FUEL_PRESSURE ||
+          component.category == ComponentCategory.OIL_PRESSURE ||
+          component.category == ComponentCategory.OTHER) && component.characteristic.points.isNotEmpty()) {
         CharacteristicsView(
           characteristic = component.characteristic,
           modifier = Modifier.testTag("detail_characteristics_view")
@@ -559,7 +567,11 @@ fun DetailScreen(
       }
 
       // 5. CHARAKTERYSTYKA OPORNOŚCIOWA DLA CZUJNIKÓW TEMPERATURY (REZYSTANCJA NTC VS TEMPERATURA)
-      if (component.category != ComponentCategory.INJECTORS && component.category != ComponentCategory.THROTTLE && component.resistanceCharacteristic != null) {
+      val canHaveResistance = component.category == ComponentCategory.TEMP_SENSOR ||
+          (component.category == ComponentCategory.MAP_SENSOR && component.resistanceCharacteristic != null) ||
+          (component.category == ComponentCategory.OIL_PRESSURE && component.resistanceCharacteristic != null) ||
+          (component.category == ComponentCategory.OTHER && component.resistanceCharacteristic != null)
+      if (canHaveResistance && component.resistanceCharacteristic != null) {
         Spacer(Modifier.height(20.dp))
         CharacteristicsView(
           characteristic = component.resistanceCharacteristic,

@@ -1039,31 +1039,40 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
       }
     }
 
+    val isThrottle = category == ComponentCategory.THROTTLE
+    val isInjectors = category == ComponentCategory.INJECTORS
+    val isCoils = category == ComponentCategory.COILS
+    val isTemp = category == ComponentCategory.TEMP_SENSOR
+    val isMap = category == ComponentCategory.MAP_SENSOR
+    val isPress = category == ComponentCategory.FUEL_PRESSURE || category == ComponentCategory.OIL_PRESSURE
+    val isLambda = category == ComponentCategory.LAMBDA
+    val isEcuOrMod = category == ComponentCategory.ECU || category == ComponentCategory.MODULES
+
     return ExtractedComponentData(
       name = json.optString("name").takeIf { it.isNotBlank() },
       partNumber = json.optString("partNumber").takeIf { it.isNotBlank() },
       category = category,
       shortDescription = json.optString("shortDescription").takeIf { it.isNotBlank() },
-      flowRateCc = json.optDouble("flowRateCc").takeIf { !it.isNaN() && it > 0 },
-      flowPressureBar = json.optDouble("flowPressureBar").takeIf { !it.isNaN() && it > 0 },
-      deadTimeTables = deadTimeTablesList,
-      calibrationPoints = calPointsList,
+      flowRateCc = if (isInjectors) json.optDouble("flowRateCc").takeIf { !it.isNaN() && it > 0 } else null,
+      flowPressureBar = if (isInjectors) json.optDouble("flowPressureBar").takeIf { !it.isNaN() && it > 0 } else null,
+      deadTimeTables = if (isInjectors) deadTimeTablesList else emptyList(),
+      calibrationPoints = if (isCoils || isMap || isPress || category == ComponentCategory.OTHER) calPointsList else emptyList(),
       calInputUnit = calInputUnit,
       calOutputUnit = calOutputUnit,
       charTitle = json.optString("charTitle").takeIf { it.isNotBlank() },
-      includeResistanceChar = json.optBoolean("includeResistanceChar", resPointsList.isNotEmpty()),
+      includeResistanceChar = if (isTemp) true else if (isThrottle || isInjectors || isCoils || isLambda || isEcuOrMod) false else json.optBoolean("includeResistanceChar", resPointsList.isNotEmpty()),
       resInputUnit = resInputUnit,
       resOutputUnit = resOutputUnit,
       resCharTitle = json.optString("resCharTitle").takeIf { it.isNotBlank() },
-      resistancePoints = resPointsList,
-      pullupRequired = json.optBoolean("pullupRequired", false),
-      pullupRecommendedValue = json.optString("pullupValue").takeIf { it.isNotBlank() },
-      innerDiameterMm = json.optDouble("innerDiameterMm").takeIf { !it.isNaN() && it > 0 },
-      outerDiameterMm = json.optDouble("outerDiameterMm").takeIf { !it.isNaN() && it > 0 },
-      boltSpacingWidthMm = json.optDouble("boltSpacingWidthMm").takeIf { !it.isNaN() && it > 0 },
-      boltSpacingHeightMm = json.optDouble("boltSpacingHeightMm").takeIf { !it.isNaN() && it > 0 },
-      boltDiagonal1Mm = json.optDouble("boltDiagonal1Mm").takeIf { !it.isNaN() && it > 0 },
-      boltDiagonal2Mm = json.optDouble("boltDiagonal2Mm").takeIf { !it.isNaN() && it > 0 },
+      resistancePoints = if (isThrottle || isInjectors || isCoils || isLambda || isEcuOrMod) emptyList() else resPointsList,
+      pullupRequired = if (isTemp) true else if (isThrottle || isInjectors || isCoils || isLambda || isEcuOrMod) false else json.optBoolean("pullupRequired", false),
+      pullupRecommendedValue = if (isThrottle || isInjectors || isCoils || isLambda || isEcuOrMod) null else json.optString("pullupValue").takeIf { it.isNotBlank() },
+      innerDiameterMm = if (isThrottle) json.optDouble("innerDiameterMm").takeIf { !it.isNaN() && it > 0 } else null,
+      outerDiameterMm = if (isThrottle) json.optDouble("outerDiameterMm").takeIf { !it.isNaN() && it > 0 } else null,
+      boltSpacingWidthMm = if (isThrottle) json.optDouble("boltSpacingWidthMm").takeIf { !it.isNaN() && it > 0 } else null,
+      boltSpacingHeightMm = if (isThrottle) json.optDouble("boltSpacingHeightMm").takeIf { !it.isNaN() && it > 0 } else null,
+      boltDiagonal1Mm = if (isThrottle) json.optDouble("boltDiagonal1Mm").takeIf { !it.isNaN() && it > 0 } else null,
+      boltDiagonal2Mm = if (isThrottle) json.optDouble("boltDiagonal2Mm").takeIf { !it.isNaN() && it > 0 } else null,
       pins = pinsList,
       importantNotes = json.optString("importantNotes").takeIf { it.isNotBlank() },
       summaryBullets = bulletsList

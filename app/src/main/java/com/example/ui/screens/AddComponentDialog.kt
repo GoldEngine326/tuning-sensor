@@ -473,6 +473,23 @@ fun AddComponentDialog(
     mutableStateOf(existingComponent?.boltDiagonal2Mm?.let { if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() } ?: "")
   }
 
+  // Flagi dla czujników zespolonych (np. T-MAP lub kombi-sensor ciśnienia i temperatury oleju)
+  var isComboTmapSensor by remember(compKey) {
+    mutableStateOf(existingComponent?.category == ComponentCategory.MAP_SENSOR && existingComponent.resistanceCharacteristic != null)
+  }
+  var isComboOilPressureTempSensor by remember(compKey) {
+    mutableStateOf(existingComponent?.category == ComponentCategory.OIL_PRESSURE && existingComponent.resistanceCharacteristic != null)
+  }
+  var showGenericOtherCalibration by remember(compKey) {
+    mutableStateOf(existingComponent?.category == ComponentCategory.OTHER && existingComponent.characteristic.points.isNotEmpty())
+  }
+  var showGenericOtherResistance by remember(compKey) {
+    mutableStateOf(existingComponent?.category == ComponentCategory.OTHER && existingComponent.resistanceCharacteristic != null)
+  }
+  var showGenericOtherPullup by remember(compKey) {
+    mutableStateOf(existingComponent?.category == ComponentCategory.OTHER && existingComponent.pullupRequired)
+  }
+
   var importantNotes by remember(compKey) { mutableStateOf(existingComponent?.importantNotes ?: "") }
   var errorMessage by remember(compKey) { mutableStateOf<String?>(null) }
   var showDeleteConfirmDialog by remember(compKey) { mutableStateOf(false) }
@@ -536,60 +553,166 @@ fun AddComponentDialog(
                   connectorName = p.connectorName.ifBlank { "Wtyczka A" }
                 )
               }
-              val finalPoints = if (category == ComponentCategory.THROTTLE) {
-                emptyList()
-              } else {
-                calPointsList.map {
-                  CalibrationPoint(
-                    inputValue = it.inVal.trim(),
-                    inputUnit = tableInputUnit.trim(),
-                    outputValue = it.outVal.trim(),
-                    outputUnit = tableOutputUnit.trim()
+              // 1. Główna charakterystyka - tylko dla kategorii, które jej potrzebują
+              val finalCharacteristic = when (category) {
+                ComponentCategory.COILS -> {
+                  CharacteristicInfo(
+                    type = CharType.DWELL_TIME,
+                    title = charTitle.ifBlank { "Tabela Dwell Time" },
+                    inputLabel = "Czas ładowania ($tableInputUnit)",
+                    outputLabel = "Napięcie ($tableOutputUnit)",
+                    points = calPointsList.map {
+                      CalibrationPoint(
+                        inputValue = it.inVal.trim(),
+                        inputUnit = tableInputUnit.trim(),
+                        outputValue = it.outVal.trim(),
+                        outputUnit = tableOutputUnit.trim()
+                      )
+                    },
+                    formulaOrNotes = charNotes
+                  )
+                }
+                ComponentCategory.MAP_SENSOR, ComponentCategory.FUEL_PRESSURE, ComponentCategory.OIL_PRESSURE -> {
+                  CharacteristicInfo(
+                    type = CharType.VOLTAGE_PRESSURE,
+                    title = charTitle.ifBlank { "Kalibracja liniowa" },
+                    inputLabel = "Ciśnienie ($tableInputUnit)",
+                    outputLabel = "Napięcie ($tableOutputUnit)",
+                    points = calPointsList.map {
+                      CalibrationPoint(
+                        inputValue = it.inVal.trim(),
+                        inputUnit = tableInputUnit.trim(),
+                        outputValue = it.outVal.trim(),
+                        outputUnit = tableOutputUnit.trim()
+                      )
+                    },
+                    formulaOrNotes = charNotes
+                  )
+                }
+                ComponentCategory.OTHER -> {
+                  if (showGenericOtherCalibration) {
+                    CharacteristicInfo(
+                      type = charType,
+                      title = charTitle.ifBlank { "Charakterystyka ogólna" },
+                      inputLabel = "Wejście ($tableInputUnit)",
+                      outputLabel = "Wyjście ($tableOutputUnit)",
+                      points = calPointsList.map {
+                        CalibrationPoint(
+                          inputValue = it.inVal.trim(),
+                          inputUnit = tableInputUnit.trim(),
+                          outputValue = it.outVal.trim(),
+                          outputUnit = tableOutputUnit.trim()
+                        )
+                      },
+                      formulaOrNotes = charNotes
+                    )
+                  } else {
+                    CharacteristicInfo(
+                      type = CharType.OTHER,
+                      title = "",
+                      inputLabel = "",
+                      outputLabel = "",
+                      points = emptyList(),
+                      formulaOrNotes = ""
+                    )
+                  }
+                }
+                else -> {
+                  // THROTTLE, INJECTORS, TEMP_SENSOR, LAMBDA, ECU, MODULES nie mają ogólnej tabeli napięciowej
+                  CharacteristicInfo(
+                    type = CharType.OTHER,
+                    title = "",
+                    inputLabel = "",
+                    outputLabel = "",
+                    points = emptyList(),
+                    formulaOrNotes = ""
                   )
                 }
               }
-              val finalCharacteristic = if (category == ComponentCategory.THROTTLE) {
-                CharacteristicInfo(
-                  type = CharType.OTHER,
-                  title = "Przepustnica",
-                  inputLabel = "",
-                  outputLabel = "",
-                  points = emptyList(),
-                  formulaOrNotes = ""
-                )
-              } else {
-                CharacteristicInfo(
-                  type = charType,
-                  title = charTitle.ifBlank { "Charakterystyka" },
-                  inputLabel = charInputLabel.ifBlank { "Wejście ($tableInputUnit)" },
-                  outputLabel = charOutputLabel.ifBlank { "Wyjście ($tableOutputUnit)" },
-                  points = finalPoints,
-                  formulaOrNotes = charNotes
-                )
+
+              // 2. Charakterystyka opornościowa NTC - TYLKO dla TEMP_SENSOR lub kombi T-MAP/kombi olej
+              val finalResistanceChar = when {
+                category == ComponentCategory.TEMP_SENSOR -> {
+                  CharacteristicInfo(
+                    type = CharType.RESISTANCE_TEMP,
+                    title = resCharTitle.ifBlank { "Charakterystyka opornościowa NTC" },
+                    inputLabel = "Temperatura ($resTableInputUnit)",
+                    outputLabel = "Opór ($resTableOutputUnit)",
+                    points = resPointsList.map {
+                      CalibrationPoint(
+                        inputValue = it.inVal.trim(),
+                        inputUnit = resTableInputUnit.trim(),
+                        outputValue = it.outVal.trim(),
+                        outputUnit = resTableOutputUnit.trim()
+                      )
+                    },
+                    formulaOrNotes = resCharNotes
+                  )
+                }
+                category == ComponentCategory.MAP_SENSOR && isComboTmapSensor && includeResistanceChar -> {
+                  CharacteristicInfo(
+                    type = CharType.RESISTANCE_TEMP,
+                    title = resCharTitle.ifBlank { "Charakterystyka opornościowa IAT (NTC)" },
+                    inputLabel = "Temperatura ($resTableInputUnit)",
+                    outputLabel = "Opór ($resTableOutputUnit)",
+                    points = resPointsList.map {
+                      CalibrationPoint(
+                        inputValue = it.inVal.trim(),
+                        inputUnit = resTableInputUnit.trim(),
+                        outputValue = it.outVal.trim(),
+                        outputUnit = resTableOutputUnit.trim()
+                      )
+                    },
+                    formulaOrNotes = resCharNotes
+                  )
+                }
+                category == ComponentCategory.OIL_PRESSURE && isComboOilPressureTempSensor && includeResistanceChar -> {
+                  CharacteristicInfo(
+                    type = CharType.RESISTANCE_TEMP,
+                    title = resCharTitle.ifBlank { "Charakterystyka temperatury oleju (NTC)" },
+                    inputLabel = "Temperatura ($resTableInputUnit)",
+                    outputLabel = "Opór ($resTableOutputUnit)",
+                    points = resPointsList.map {
+                      CalibrationPoint(
+                        inputValue = it.inVal.trim(),
+                        inputUnit = resTableInputUnit.trim(),
+                        outputValue = it.outVal.trim(),
+                        outputUnit = resTableOutputUnit.trim()
+                      )
+                    },
+                    formulaOrNotes = resCharNotes
+                  )
+                }
+                category == ComponentCategory.OTHER && showGenericOtherResistance -> {
+                  CharacteristicInfo(
+                    type = CharType.RESISTANCE_TEMP,
+                    title = resCharTitle.ifBlank { "Charakterystyka opornościowa" },
+                    inputLabel = "Temperatura ($resTableInputUnit)",
+                    outputLabel = "Opór ($resTableOutputUnit)",
+                    points = resPointsList.map {
+                      CalibrationPoint(
+                        inputValue = it.inVal.trim(),
+                        inputUnit = resTableInputUnit.trim(),
+                        outputValue = it.outVal.trim(),
+                        outputUnit = resTableOutputUnit.trim()
+                      )
+                    },
+                    formulaOrNotes = resCharNotes
+                  )
+                }
+                else -> null
               }
 
-              val finalResistanceChar = if (category == ComponentCategory.THROTTLE) {
-                null
-              } else if (includeResistanceChar) {
-                CharacteristicInfo(
-                  type = CharType.RESISTANCE_TEMP,
-                  title = resCharTitle.ifBlank { "Charakterystyka opornościowa NTC" },
-                  inputLabel = "Temperatura ($resTableInputUnit)",
-                  outputLabel = "Opór ($resTableOutputUnit)",
-                  points = resPointsList.map {
-                    CalibrationPoint(
-                      inputValue = it.inVal.trim(),
-                      inputUnit = resTableInputUnit.trim(),
-                      outputValue = it.outVal.trim(),
-                      outputUnit = resTableOutputUnit.trim()
-                    )
-                  },
-                  formulaOrNotes = resCharNotes
-                )
-              } else {
-                null
+              // 3. Rezystor Pull-Up: TYLKO dla czujników temp lub kombi T-MAP/kombi olej
+              val finalPullupRequired = when {
+                category == ComponentCategory.TEMP_SENSOR -> pullupRequired
+                category == ComponentCategory.MAP_SENSOR -> isComboTmapSensor && pullupRequired
+                category == ComponentCategory.OIL_PRESSURE -> isComboOilPressureTempSensor && pullupRequired
+                category == ComponentCategory.OTHER -> showGenericOtherPullup && pullupRequired
+                else -> false
               }
 
+              // 4. Tabele Dead Time - TYLKO dla INJECTORS
               val finalDeadTimeTables = if (category == ComponentCategory.INJECTORS) {
                 deadTimeTablesDraft.map { tbl ->
                   com.example.model.DeadTimeTable(
@@ -611,6 +734,7 @@ fun AddComponentDialog(
               val finalImages = imagesList.toList()
               val primaryImg = finalImages.firstOrNull() ?: ""
 
+              // 5. Wydajność wtryskiwacza - TYLKO dla INJECTORS
               val parsedFlowRate = if (category == ComponentCategory.INJECTORS) {
                 flowRateCcInput.replace(",", ".").trim().toDoubleOrNull()
               } else null
@@ -619,6 +743,7 @@ fun AddComponentDialog(
                 flowPressureBarInput.replace(",", ".").trim().toDoubleOrNull()
               } else null
 
+              // 6. Wymiary przepustnicy - TYLKO dla THROTTLE
               val parsedInnerDiameter = if (category == ComponentCategory.THROTTLE) {
                 innerDiameterInput.replace(",", ".").trim().toDoubleOrNull()
               } else null
@@ -653,7 +778,7 @@ fun AddComponentDialog(
                 finalPins,
                 finalCharacteristic,
                 finalResistanceChar,
-                pullupRequired,
+                finalPullupRequired,
                 pullupValue,
                 pullupNote,
                 importantNotes,
@@ -777,6 +902,19 @@ fun AddComponentDialog(
               importantNotes = if (importantNotes.isBlank()) it else "$importantNotes\n$it"
             }
           }
+
+          // Dostosowanie dozwolonych pól pod kątem kategorii po ekstrakcji
+          if (category == ComponentCategory.THROTTLE ||
+              category == ComponentCategory.INJECTORS ||
+              category == ComponentCategory.COILS ||
+              category == ComponentCategory.LAMBDA ||
+              category == ComponentCategory.ECU ||
+              category == ComponentCategory.MODULES) {
+            pullupRequired = false
+            includeResistanceChar = false
+            isComboTmapSensor = false
+            isComboOilPressureTempSensor = false
+          }
         },
         modifier = Modifier.padding(bottom = 16.dp)
       )
@@ -833,27 +971,158 @@ fun AddComponentDialog(
               text = { Text(cat.displayName, color = TextPrimary) },
               onClick = {
                 category = cat
-                if (cat == ComponentCategory.TEMP_SENSOR) {
-                  pullupRequired = true
-                  includeResistanceChar = true
-                }
-                if (cat == ComponentCategory.THROTTLE) {
-                  pullupRequired = false
-                  includeResistanceChar = false
-                  if (pinsList.size == 3 && pinsList.all { it.name.isBlank() && it.description.isBlank() }) {
-                    pinsList.clear()
-                    pinsList.addAll(
-                      (1..6).map { num ->
-                        PinDraft(
-                          pinNumber = "$num",
-                          name = "",
-                          description = "",
-                          wireColor = "",
-                          type = PinType.OTHER,
-                          connectorName = "Wtyczka A"
+                when (cat) {
+                  ComponentCategory.THROTTLE -> {
+                    pullupRequired = false
+                    includeResistanceChar = false
+                    isComboTmapSensor = false
+                    isComboOilPressureTempSensor = false
+                    if (pinsList.size <= 3 && pinsList.all { it.name.isBlank() && it.description.isBlank() }) {
+                      pinsList.clear()
+                      pinsList.addAll(
+                        listOf(
+                          PinDraft(pinNumber = "1", name = "Silnik DBW Motor +", description = "Sterowanie silnikiem przepustnicy (H-Bridge A)", wireColor = "Żółty", type = PinType.MOTOR, connectorName = "Wtyczka A"),
+                          PinDraft(pinNumber = "2", name = "Silnik DBW Motor -", description = "Sterowanie silnikiem przepustnicy (H-Bridge B)", wireColor = "Niebieski", type = PinType.MOTOR, connectorName = "Wtyczka A"),
+                          PinDraft(pinNumber = "3", name = "Sensor GND", description = "Masa sensoryczna czujników TPS z ECU", wireColor = "Brązowy", type = PinType.SENSOR_GND, connectorName = "Wtyczka A"),
+                          PinDraft(pinNumber = "4", name = "TPS 1 Sygnał", description = "Potencjometr główny 0.5V - 4.5V", wireColor = "Biały", type = PinType.TPS, connectorName = "Wtyczka A"),
+                          PinDraft(pinNumber = "5", name = "+5V VREF", description = "Zasilanie referencyjne z ECU", wireColor = "Czerwony", type = PinType.VREF, connectorName = "Wtyczka A"),
+                          PinDraft(pinNumber = "6", name = "TPS 2 Sygnał", description = "Potencjometr redundantny 4.5V - 0.5V", wireColor = "Zielony", type = PinType.TPS, connectorName = "Wtyczka A")
                         )
-                      }
-                    )
+                      )
+                    }
+                  }
+                  ComponentCategory.INJECTORS -> {
+                    pullupRequired = false
+                    includeResistanceChar = false
+                    isComboTmapSensor = false
+                    isComboOilPressureTempSensor = false
+                    if (pinsList.size <= 3 && pinsList.all { it.name.isBlank() && it.description.isBlank() }) {
+                      pinsList.clear()
+                      pinsList.addAll(
+                        listOf(
+                          PinDraft(pinNumber = "1", name = "+12V Zasilanie", description = "Zasilanie po stacyjce / przekaźnik pompy", wireColor = "Czerwony", type = PinType.POWER, connectorName = "Wtyczka A"),
+                          PinDraft(pinNumber = "2", name = "Sterowanie wtryskiem (ECU)", description = "Kluczowanie masą z wyjścia wtryskiwacza Low-Side", wireColor = "Niebieski", type = PinType.INJECTOR, connectorName = "Wtyczka A")
+                        )
+                      )
+                    }
+                  }
+                  ComponentCategory.COILS -> {
+                    pullupRequired = false
+                    includeResistanceChar = false
+                    isComboTmapSensor = false
+                    isComboOilPressureTempSensor = false
+                    charTitle = "Tabela Dwell Time (Czas ładowania cewki)"
+                    tableInputUnit = "ms"
+                    tableOutputUnit = "V"
+                    charType = CharType.DWELL_TIME
+                    if (pinsList.size <= 3 && pinsList.all { it.name.isBlank() && it.description.isBlank() }) {
+                      pinsList.clear()
+                      pinsList.addAll(
+                        listOf(
+                          PinDraft(pinNumber = "1", name = "+12V Zasilanie główne", description = "Zasilanie z przekaźnika po stacyjce", wireColor = "Czerwony", type = PinType.POWER, connectorName = "Wtyczka A"),
+                          PinDraft(pinNumber = "2", name = "Masa iskry / głowicy (Power GND)", description = "Bezpośrednio do głowicy silnika", wireColor = "Brązowy", type = PinType.GROUND, connectorName = "Wtyczka A"),
+                          PinDraft(pinNumber = "3", name = "Sygnał wyzwalający (Trigger 5V)", description = "Logika 5V TTL z wyjścia zapłonu ECU", wireColor = "Szary", type = PinType.IGNITION, connectorName = "Wtyczka A"),
+                          PinDraft(pinNumber = "4", name = "Masa logiczna (Logic GND)", description = "Masa sterująca z ECU lub silnika", wireColor = "Czarny", type = PinType.GROUND, connectorName = "Wtyczka A")
+                        )
+                      )
+                    }
+                    if (calPointsList.isEmpty() || calPointsList.all { it.inVal.isBlank() }) {
+                      calPointsList.clear()
+                      calPointsList.addAll(
+                        listOf(
+                          CalPointDraft(inVal = "3.20", inUnit = "ms", outVal = "10.0", outUnit = "V"),
+                          CalPointDraft(inVal = "2.80", inUnit = "ms", outVal = "11.0", outUnit = "V"),
+                          CalPointDraft(inVal = "2.50", inUnit = "ms", outVal = "12.0", outUnit = "V"),
+                          CalPointDraft(inVal = "2.30", inUnit = "ms", outVal = "13.0", outUnit = "V"),
+                          CalPointDraft(inVal = "2.10", inUnit = "ms", outVal = "14.0", outUnit = "V"),
+                          CalPointDraft(inVal = "1.90", inUnit = "ms", outVal = "15.0", outUnit = "V")
+                        )
+                      )
+                    }
+                  }
+                  ComponentCategory.TEMP_SENSOR -> {
+                    pullupRequired = true
+                    includeResistanceChar = true
+                    isComboTmapSensor = false
+                    isComboOilPressureTempSensor = false
+                    resCharTitle = "Charakterystyka opornościowa NTC (Temp vs Rezystancja)"
+                    resTableInputUnit = "°C"
+                    resTableOutputUnit = "Ω"
+                    if (pinsList.size <= 3 && pinsList.all { it.name.isBlank() && it.description.isBlank() }) {
+                      pinsList.clear()
+                      pinsList.addAll(
+                        listOf(
+                          PinDraft(pinNumber = "1", name = "Sensor GND", description = "Masa sensoryczna z ECU", wireColor = "Brązowy", type = PinType.SENSOR_GND, connectorName = "Wtyczka A"),
+                          PinDraft(pinNumber = "2", name = "Sygnał temperatury (NTC)", description = "Wejście analogowe z rezystorem pull-up", wireColor = "Biały", type = PinType.SIGNAL_IN, connectorName = "Wtyczka A")
+                        )
+                      )
+                    }
+                  }
+                  ComponentCategory.MAP_SENSOR -> {
+                    pullupRequired = false
+                    includeResistanceChar = false
+                    isComboTmapSensor = false
+                    charTitle = "Kalibracja liniowa MAP (kPa vs V)"
+                    tableInputUnit = "kPa"
+                    tableOutputUnit = "V"
+                    charType = CharType.VOLTAGE_PRESSURE
+                    if (pinsList.size <= 3 && pinsList.all { it.name.isBlank() && it.description.isBlank() }) {
+                      pinsList.clear()
+                      pinsList.addAll(
+                        listOf(
+                          PinDraft(pinNumber = "1", name = "Sensor GND", description = "Masa sensoryczna z ECU", wireColor = "Brązowy", type = PinType.SENSOR_GND, connectorName = "Wtyczka A"),
+                          PinDraft(pinNumber = "2", name = "+5V VREF", description = "Zasilanie referencyjne 5V z ECU", wireColor = "Czerwony", type = PinType.VREF, connectorName = "Wtyczka A"),
+                          PinDraft(pinNumber = "3", name = "Sygnał ciśnienia MAP", description = "Sygnał 0.5V - 4.5V do ECU", wireColor = "Biały", type = PinType.SIGNAL_OUT, connectorName = "Wtyczka A")
+                        )
+                      )
+                    }
+                  }
+                  ComponentCategory.FUEL_PRESSURE, ComponentCategory.OIL_PRESSURE -> {
+                    pullupRequired = false
+                    includeResistanceChar = false
+                    isComboOilPressureTempSensor = false
+                    charTitle = "Kalibracja liniowa ciśnienia (bar vs V)"
+                    tableInputUnit = "bar"
+                    tableOutputUnit = "V"
+                    charType = CharType.VOLTAGE_PRESSURE
+                    if (pinsList.size <= 3 && pinsList.all { it.name.isBlank() && it.description.isBlank() }) {
+                      pinsList.clear()
+                      pinsList.addAll(
+                        listOf(
+                          PinDraft(pinNumber = "1", name = "Sensor GND", description = "Masa sensoryczna z ECU", wireColor = "Brązowy", type = PinType.SENSOR_GND, connectorName = "Wtyczka A"),
+                          PinDraft(pinNumber = "2", name = "+5V VREF", description = "Zasilanie referencyjne 5V z ECU", wireColor = "Czerwony", type = PinType.VREF, connectorName = "Wtyczka A"),
+                          PinDraft(pinNumber = "3", name = "Sygnał ciśnienia", description = "Sygnał analogowy 0.5V - 4.5V", wireColor = "Biały", type = PinType.SIGNAL_OUT, connectorName = "Wtyczka A")
+                        )
+                      )
+                    }
+                  }
+                  ComponentCategory.LAMBDA -> {
+                    pullupRequired = false
+                    includeResistanceChar = false
+                    isComboTmapSensor = false
+                    isComboOilPressureTempSensor = false
+                    if (pinsList.size <= 3 && pinsList.all { it.name.isBlank() && it.description.isBlank() }) {
+                      pinsList.clear()
+                      pinsList.addAll(
+                        listOf(
+                          PinDraft(pinNumber = "1", name = "IP (Pump Current)", description = "Prąd pompowania tlenu z kontrolera", wireColor = "Czerwony", type = PinType.SIGNAL_OUT, connectorName = "Wtyczka LSU"),
+                          PinDraft(pinNumber = "2", name = "VM (Virtual Ground)", description = "Masa wirtualna z kontrolera", wireColor = "Żółty", type = PinType.SENSOR_GND, connectorName = "Wtyczka LSU"),
+                          PinDraft(pinNumber = "3", name = "H- (Grzałka -)", description = "Sterowanie masą grzałki PWM z kontrolera/ECU", wireColor = "Biały", type = PinType.HEATER, connectorName = "Wtyczka LSU"),
+                          PinDraft(pinNumber = "4", name = "H+ (Grzałka +12V)", description = "Zasilanie grzałki +12V po przekaźniku", wireColor = "Szary", type = PinType.POWER, connectorName = "Wtyczka LSU"),
+                          PinDraft(pinNumber = "5", name = "IA / RT (Trim Resistor)", description = "Rezystor kalibracyjny we wtyczce", wireColor = "Zielony", type = PinType.SIGNAL_IN, connectorName = "Wtyczka LSU"),
+                          PinDraft(pinNumber = "6", name = "UN / RE (Nernst Voltage)", description = "Napięcie celi Nernsta 450mV", wireColor = "Czarny", type = PinType.SIGNAL_IN, connectorName = "Wtyczka LSU")
+                        )
+                      )
+                    }
+                  }
+                  ComponentCategory.ECU, ComponentCategory.MODULES -> {
+                    pullupRequired = false
+                    includeResistanceChar = false
+                    isComboTmapSensor = false
+                    isComboOilPressureTempSensor = false
+                  }
+                  ComponentCategory.OTHER, ComponentCategory.ALL -> {
+                    // Pozostaw bez zmian
                   }
                 }
                 categoryDropdownExpanded = false
@@ -1172,75 +1441,8 @@ fun AddComponentDialog(
 
       Spacer(Modifier.height(20.dp))
 
-      // 2. Wymóg pull-upa
-      SectionHeader(title = "2. Rezystor PULL-UP (dla wejść NTC/Temp)", icon = Icons.Default.Warning)
-      Spacer(Modifier.height(8.dp))
-
-      Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated),
-        border = androidx.compose.foundation.BorderStroke(1.dp, BorderStroke)
-      ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-          Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-          ) {
-            Column(modifier = Modifier.weight(1f)) {
-              Text(
-                text = "Wymagany rezystor Pull-Up?",
-                fontWeight = FontWeight.Bold,
-                color = TextPrimary
-              )
-              Text(
-                text = "Zaznacz, jeśli czujnik to termistor NTC lub wymaga podciągnięcia do szyny +5V VREF",
-                fontSize = 12.sp,
-                color = TextSecondary
-              )
-            }
-            Switch(
-              checked = pullupRequired,
-              onCheckedChange = {
-                pullupRequired = it
-                if (it) includeResistanceChar = true
-              },
-              colors = SwitchDefaults.colors(
-                checkedThumbColor = TunerAmber,
-                checkedTrackColor = TunerAmber.copy(alpha = 0.4f)
-              )
-            )
-          }
-
-          if (pullupRequired) {
-            Spacer(Modifier.height(10.dp))
-            OutlinedTextField(
-              value = pullupValue,
-              onValueChange = { pullupValue = it },
-              label = { Text("Zalecana wartość rezystora") },
-              modifier = Modifier.fillMaxWidth(),
-              colors = customFieldColors(),
-              singleLine = true
-            )
-            Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
-              value = pullupNote,
-              onValueChange = { pullupNote = it },
-              label = { Text("Wskazówka montażowa pull-upa") },
-              placeholder = { Text("np. Podłącz 2.49kΩ pomiędzy linię sygnału a +5V VREF w ECU") },
-              modifier = Modifier.fillMaxWidth(),
-              colors = customFieldColors(),
-              minLines = 2
-            )
-          }
-        }
-      }
-
-      Spacer(Modifier.height(20.dp))
-
-      // 3. Zdjęcie wtyczki (Connector / Plug) nad układem pinów
-      SectionHeader(title = "3. Zdjęcie wtyczki (Złącza)", icon = Icons.Default.Cable)
+      // 2. Zdjęcie wtyczki (Connector / Plug) nad układem pinów
+      SectionHeader(title = "2. Zdjęcie wtyczki (Złącza)", icon = Icons.Default.Cable)
       Spacer(Modifier.height(8.dp))
 
       Card(
@@ -1330,13 +1532,13 @@ fun AddComponentDialog(
 
       Spacer(Modifier.height(20.dp))
 
-      // 4. Pinout Builder with Multi-Connector support
+      // 3. Pinout Builder with Multi-Connector support
       Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
       ) {
-        SectionHeader(title = "4. Układ pinów (Pinout)", icon = Icons.Default.ElectricalServices)
+        SectionHeader(title = "3. Układ pinów (Pinout)", icon = Icons.Default.ElectricalServices)
         OutlinedButton(
           onClick = {
             val nextLetter = ('A'.code + connectorsList.size).toChar().toString()
@@ -1654,11 +1856,13 @@ fun AddComponentDialog(
         }
       }
 
-      Spacer(Modifier.height(20.dp))
+      var secCounter = 4
 
-      // 5. WYMIARY PRZEPUSTNICY I ROZSTAW ŚRUB DLA KATEGORII PRZEPUSTNICA
+      // ==========================================
+      // KATEGORIA: THROTTLE (Przepustnice)
+      // ==========================================
       if (category == ComponentCategory.THROTTLE) {
-        SectionHeader(title = "5. Wymiary przepustnicy i rozstaw śrub", icon = Icons.Default.Architecture)
+        SectionHeader(title = "${secCounter++}. Wymiary gardzieli i kołnierza montażowego", icon = Icons.Default.Architecture)
         Spacer(Modifier.height(8.dp))
 
         Card(
@@ -1874,9 +2078,11 @@ fun AddComponentDialog(
         }
       }
 
-      // 5. CHARAKTERYSTYKA DLA WTRYSKIWACZY (DEAD TIME) LUB GŁÓWNA CHARAKTERYSTYKA (NAPIĘCIOWA / DWELL)
-      if (category == ComponentCategory.INJECTORS) {
-        SectionHeader(title = "5. Wydajność wtryskiwacza i kalkulator ciśnienia", icon = Icons.Default.Speed)
+      // ==========================================
+      // KATEGORIA: INJECTORS (Wtryskiwacze)
+      // ==========================================
+      else if (category == ComponentCategory.INJECTORS) {
+        SectionHeader(title = "${secCounter++}. Wydajność nominalna i ciśnienie testowe", icon = Icons.Default.Speed)
         Spacer(Modifier.height(8.dp))
 
         // Karta deklaracji wydajności bazowej
@@ -1914,7 +2120,7 @@ fun AddComponentDialog(
 
             Spacer(Modifier.height(8.dp))
             Text(
-              text = "Podaj nominalną wydajność wtryskiwacza (np. 630 cc/min) oraz ciśnienie testowe (np. 3.0 bar). W szczegółach użytkownik będzie mógł wpisać ciśnienie swojego układu, a aplikacja automatycznie przeliczy wydajność!",
+              text = "Podaj nominalną wydajność wtryskiwacza (np. 630 cc/min) oraz ciśnienie testowe (np. 3.0 bar). W widoku szczegółów tuner będzie mógł wpisać ciśnienie swojego układu i przeliczyć wydajność!",
               fontSize = 11.5.sp,
               color = TextSecondary,
               lineHeight = 16.sp
@@ -1963,11 +2169,11 @@ fun AddComponentDialog(
           }
         }
 
-        SectionHeader(title = "Tabele Dead Time wtryskiwacza (Napięcie vs Czas [ms])", icon = Icons.Default.ElectricalServices)
+        SectionHeader(title = "${secCounter++}. Tabele Dead Time wtryskiwacza (Napięcie vs Czas [ms])", icon = Icons.Default.ElectricalServices)
         Spacer(Modifier.height(8.dp))
 
         Text(
-          text = "Czas martwy (Dead Time / Battery Voltage Compensation) określa opóźnienie otwarcia wtryskiwacza w zależności od napięcia instalacji. Możesz dodać tabele dla różnych ciśnień paliwa (np. 3.0 bar, 4.0 bar).",
+          text = "Czas martwy (Dead Time / Battery Voltage Compensation) określa opóźnienie otwarcia wtryskiwacza w zależności od napięcia. Możesz dodać tabele dla każdego ciśnienia (np. 2.5 bar, 3.0 bar, 4.0 bar).",
           fontSize = 12.sp,
           color = TextSecondary,
           lineHeight = 17.sp
@@ -2139,7 +2345,6 @@ fun AddComponentDialog(
           }
         }
 
-        // Przycisk dodawania kolejnej tabeli Dead Time dla innego ciśnienia
         OutlinedButton(
           onClick = {
             val nextPressureBar = (deadTimeTablesDraft.size + 3).toString()
@@ -2174,73 +2379,39 @@ fun AddComponentDialog(
           Spacer(Modifier.width(6.dp))
           Text("Dodaj kolejną tabelę ciśnienia (Dead Time)", fontWeight = FontWeight.Bold, fontSize = 12.sp)
         }
-      } else if (category != ComponentCategory.THROTTLE) {
-        // Standardowa sekcja 5 dla pozostałych kategorii
-        SectionHeader(title = "5. Główna charakterystyka (Napięciowa / Dwell)", icon = Icons.Default.ShowChart)
+      }
+
+      // ==========================================
+      // KATEGORIA: COILS (Cewki zapłonowe)
+      // ==========================================
+      else if (category == ComponentCategory.COILS) {
+        SectionHeader(title = "${secCounter++}. Tabela Dwell Time (Czas ładowania cewki)", icon = Icons.Default.ElectricalServices)
         Spacer(Modifier.height(8.dp))
 
-        OutlinedTextField(
-          value = charTitle,
-          onValueChange = { charTitle = it },
-          label = { Text("Tytuł charakterystyki") },
-          modifier = Modifier.fillMaxWidth(),
-          colors = customFieldColors(),
-          singleLine = true
-        )
-
-        Spacer(Modifier.height(10.dp))
-
-        // Tabela punktów kalibracyjnych z globalnymi jednostkami
         Card(
           modifier = Modifier.fillMaxWidth(),
-          shape = RoundedCornerShape(10.dp),
+          shape = RoundedCornerShape(12.dp),
           colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated),
           border = androidx.compose.foundation.BorderStroke(1.dp, BorderStroke)
         ) {
-          Column(modifier = Modifier.padding(12.dp)) {
-            // Ustalanie wspólnej jednostki dla całej tabeli
-            Row(
-              modifier = Modifier.fillMaxWidth(),
-              horizontalArrangement = Arrangement.spacedBy(8.dp),
-              verticalAlignment = Alignment.CenterVertically
-            ) {
-              OutlinedTextField(
-                value = tableInputUnit,
-                onValueChange = { tableInputUnit = it },
-                label = { Text("Jedn. wyjścia (np. kPa)") },
-                modifier = Modifier.weight(1f),
-                colors = OutlinedTextFieldDefaults.colors(
-                  focusedTextColor = TunerCyan,
-                  unfocusedTextColor = TunerCyan,
-                  focusedLabelColor = TunerCyan,
-                  focusedBorderColor = TunerCyan,
-                  cursorColor = TunerCyan,
-                  focusedContainerColor = DarkSurface,
-                  unfocusedContainerColor = DarkSurface
-                ),
-                singleLine = true
-              )
-              OutlinedTextField(
-                value = tableOutputUnit,
-                onValueChange = { tableOutputUnit = it },
-                label = { Text("Jedn. wejścia (np. V)") },
-                modifier = Modifier.weight(1f),
-                colors = OutlinedTextFieldDefaults.colors(
-                  focusedTextColor = TunerAmber,
-                  unfocusedTextColor = TunerAmber,
-                  focusedLabelColor = TunerAmber,
-                  focusedBorderColor = TunerAmber,
-                  cursorColor = TunerAmber,
-                  focusedContainerColor = DarkSurface,
-                  unfocusedContainerColor = DarkSurface
-                ),
-                singleLine = true
-              )
-            }
+          Column(modifier = Modifier.padding(14.dp)) {
+            Text(
+              text = "Tabela czasu ładowania cewki (Dwell Time vs Napięcie)",
+              fontWeight = FontWeight.Bold,
+              fontSize = 13.sp,
+              color = TextPrimary
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+              text = "Określa wymagany czas nasycenia cewki energią w milisekundach (ms) w zależności od napięcia zasilania baterii w woltach (V). Wpisz punkty z datasheetu producenta.",
+              fontSize = 11.5.sp,
+              color = TextSecondary,
+              lineHeight = 16.sp
+            )
 
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(12.dp))
 
-            // Nagłówek tabeli
+            // Nagłówek tabeli Dwell
             Row(
               modifier = Modifier
                 .fillMaxWidth()
@@ -2249,25 +2420,25 @@ fun AddComponentDialog(
               verticalAlignment = Alignment.CenterVertically
             ) {
               Text(
-                text = "Wartość wyjściowa [${tableInputUnit.ifBlank { "-" }}]",
+                text = "Napięcie [$tableOutputUnit]",
                 fontWeight = FontWeight.Bold,
                 fontSize = 12.sp,
                 color = TunerCyan,
                 modifier = Modifier.weight(1f)
               )
               Text(
-                text = "Wartość wejściowa [${tableOutputUnit.ifBlank { "-" }}]",
+                text = "Dwell Time [$tableInputUnit]",
                 fontWeight = FontWeight.Bold,
                 fontSize = 12.sp,
                 color = TunerAmber,
                 modifier = Modifier.weight(1f)
               )
-              Spacer(Modifier.width(36.dp)) // miejsce na ikonę usuwania
+              Spacer(Modifier.width(36.dp))
             }
 
             Spacer(Modifier.height(6.dp))
 
-            // Wiersze tabeli
+            // Wiersze punktów Dwell
             calPointsList.forEachIndexed { cIdx, pt ->
               Row(
                 modifier = Modifier
@@ -2277,11 +2448,11 @@ fun AddComponentDialog(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
               ) {
                 OutlinedTextField(
-                  value = pt.inVal,
+                  value = pt.outVal,
                   onValueChange = { newVal ->
-                    calPointsList[cIdx] = pt.copy(inVal = newVal)
+                    calPointsList[cIdx] = pt.copy(outVal = newVal)
                   },
-                  placeholder = { Text("np. 100") },
+                  placeholder = { Text("np. 12.0") },
                   modifier = Modifier.weight(1f),
                   colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = TunerCyan,
@@ -2294,11 +2465,11 @@ fun AddComponentDialog(
                   singleLine = true
                 )
                 OutlinedTextField(
-                  value = pt.outVal,
+                  value = pt.inVal,
                   onValueChange = { newVal ->
-                    calPointsList[cIdx] = pt.copy(outVal = newVal)
+                    calPointsList[cIdx] = pt.copy(inVal = newVal)
                   },
-                  placeholder = { Text("np. 1.80") },
+                  placeholder = { Text("np. 2.50") },
                   modifier = Modifier.weight(1f),
                   colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = TunerAmber,
@@ -2329,28 +2500,29 @@ fun AddComponentDialog(
             ) {
               Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
               Spacer(Modifier.width(6.dp))
-              Text("Dodaj kolejny wiersz kalibracji", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+              Text("Dodaj napięcie i czas dwell", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             }
+
+            Spacer(Modifier.height(10.dp))
+
+            OutlinedTextField(
+              value = charNotes,
+              onValueChange = { charNotes = it },
+              label = { Text("Wskazówki cewki dla tunera (np. typ i max dwell)") },
+              placeholder = { Text("np. Cewka aktywna z wbudowanym tranzystorem (trigger 5V). Max dwell 2.6 ms przy 14V.") },
+              modifier = Modifier.fillMaxWidth(),
+              colors = customFieldColors(),
+              minLines = 2
+            )
           }
         }
-
-        Spacer(Modifier.height(8.dp))
-
-        OutlinedTextField(
-          value = charNotes,
-          onValueChange = { charNotes = it },
-          label = { Text("Wzór matematyczny / notatki kalibracji") },
-          placeholder = { Text("np. V = 0.0152 * p + 0.1, opór w 20°C to 2500 Ω") },
-          modifier = Modifier.fillMaxWidth(),
-          colors = customFieldColors(),
-          minLines = 2
-        )
       }
 
-      // 6. CHARAKTERYSTYKA OPORNOŚCIOWA DLA CZUJNIKÓW TEMPERATURY (NTC)
-      if (category != ComponentCategory.THROTTLE && category != ComponentCategory.INJECTORS) {
-        Spacer(Modifier.height(20.dp))
-        SectionHeader(title = "6. Charakterystyka opornościowa (Dla czujników temp. NTC)", icon = Icons.Default.Thermostat)
+      // ==========================================
+      // KATEGORIA: TEMP_SENSOR (Czujniki temperatury: IAT, CLT, Olej itp.)
+      // ==========================================
+      else if (category == ComponentCategory.TEMP_SENSOR) {
+        SectionHeader(title = "${secCounter++}. Rezystor PULL-UP (Podciągający do +5V)", icon = Icons.Default.ElectricalServices)
         Spacer(Modifier.height(8.dp))
 
         Card(
@@ -2359,48 +2531,89 @@ fun AddComponentDialog(
           colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated),
           border = androidx.compose.foundation.BorderStroke(1.dp, BorderStroke)
         ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-          Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-          ) {
-            Column(modifier = Modifier.weight(1f)) {
-              Text(
-                text = "Dołącz tabelę opornościową NTC (°C vs Ω)",
-                fontWeight = FontWeight.Bold,
-                color = TextPrimary
-              )
-              Text(
-                text = "Zalecane dla czujników IAT/CLT lub 2-w-1 MAP+IAT do kalibracji w TunerStudio/EMU",
-                fontSize = 12.sp,
-                color = TextSecondary
+          Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Column(modifier = Modifier.weight(1f)) {
+                Text(
+                  text = "Wymagany rezystor PULL-UP w sterowniku",
+                  fontWeight = FontWeight.Bold,
+                  color = TextPrimary
+                )
+                Text(
+                  text = "Termistory NTC/PTC wymagają podciągnięcia sygnału rezystorem do +5V VREF na wejściu analogowym ECU.",
+                  fontSize = 11.5.sp,
+                  color = TextSecondary
+                )
+              }
+              Switch(
+                checked = pullupRequired,
+                onCheckedChange = { pullupRequired = it },
+                colors = SwitchDefaults.colors(
+                  checkedThumbColor = TunerCyan,
+                  checkedTrackColor = TunerCyan.copy(alpha = 0.4f)
+                )
               )
             }
-            Switch(
-              checked = includeResistanceChar,
-              onCheckedChange = { includeResistanceChar = it },
-              colors = SwitchDefaults.colors(
-                checkedThumbColor = TunerCyan,
-                checkedTrackColor = TunerCyan.copy(alpha = 0.4f)
+
+            if (pullupRequired) {
+              Spacer(Modifier.height(10.dp))
+              OutlinedTextField(
+                value = pullupValue,
+                onValueChange = { pullupValue = it },
+                label = { Text("Wartość rezystora pull-up (np. 2490 Ω lub 2.49 kΩ)") },
+                modifier = Modifier.fillMaxWidth(),
+                colors = customFieldColors(),
+                singleLine = true
               )
-            )
+
+              Spacer(Modifier.height(8.dp))
+
+              OutlinedTextField(
+                value = pullupNote,
+                onValueChange = { pullupNote = it },
+                label = { Text("Uwagi dot. podłączenia do ECU (opcjonalne)") },
+                placeholder = { Text("np. Wbudowany pull-up w EMU Black (wejście IAT/CLT)") },
+                modifier = Modifier.fillMaxWidth(),
+                colors = customFieldColors(),
+                singleLine = true
+              )
+            }
           }
+        }
 
-          if (includeResistanceChar) {
-            Spacer(Modifier.height(10.dp))
-            OutlinedTextField(
-              value = resCharTitle,
-              onValueChange = { resCharTitle = it },
-              label = { Text("Tytuł krzywej opornościowej") },
-              modifier = Modifier.fillMaxWidth(),
-              colors = customFieldColors(),
-              singleLine = true
+        Spacer(Modifier.height(16.dp))
+
+        SectionHeader(title = "${secCounter++}. Charakterystyka opornościowa NTC (Temperatura vs Rezystancja)", icon = Icons.Default.Thermostat)
+        Spacer(Modifier.height(8.dp))
+
+        Card(
+          modifier = Modifier.fillMaxWidth(),
+          shape = RoundedCornerShape(12.dp),
+          colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated),
+          border = androidx.compose.foundation.BorderStroke(1.dp, BorderStroke)
+        ) {
+          Column(modifier = Modifier.padding(14.dp)) {
+            Text(
+              text = "Krzywa rezystancji czujnika (°C vs Ω)",
+              fontWeight = FontWeight.Bold,
+              fontSize = 13.sp,
+              color = TextPrimary
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+              text = "Wpisz punkty kalibracji temperatury i odpowiadającej jej oporności w omach. Te dane są niezbędne do wpisania w tabeli analogowej TunerStudio, EMU Black lub Link ECU.",
+              fontSize = 11.5.sp,
+              color = TextSecondary,
+              lineHeight = 16.sp
             )
 
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(12.dp))
 
-            // Ustalanie wspólnej jednostki dla całej tabeli opornościowej
+            // Ustalanie jednostek
             Row(
               modifier = Modifier.fillMaxWidth(),
               horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -2409,7 +2622,7 @@ fun AddComponentDialog(
               OutlinedTextField(
                 value = resTableInputUnit,
                 onValueChange = { resTableInputUnit = it },
-                label = { Text("Jedn. temp. (np. °C)") },
+                label = { Text("Jedn. temp.") },
                 modifier = Modifier.weight(1f),
                 colors = customFieldColors(),
                 singleLine = true
@@ -2417,7 +2630,7 @@ fun AddComponentDialog(
               OutlinedTextField(
                 value = resTableOutputUnit,
                 onValueChange = { resTableOutputUnit = it },
-                label = { Text("Jedn. oporu (np. Ω)") },
+                label = { Text("Jedn. oporu") },
                 modifier = Modifier.weight(1f),
                 colors = customFieldColors(),
                 singleLine = true
@@ -2426,7 +2639,7 @@ fun AddComponentDialog(
 
             Spacer(Modifier.height(10.dp))
 
-            // Nagłówek tabeli opornościowej
+            // Nagłówek tabeli
             Row(
               modifier = Modifier
                 .fillMaxWidth()
@@ -2435,14 +2648,14 @@ fun AddComponentDialog(
               verticalAlignment = Alignment.CenterVertically
             ) {
               Text(
-                text = "Temperatura [${resTableInputUnit.ifBlank { "-" }}]",
+                text = "Temperatura [${resTableInputUnit.ifBlank { "°C" }}]",
                 fontWeight = FontWeight.Bold,
                 fontSize = 12.sp,
                 color = TunerCyan,
                 modifier = Modifier.weight(1f)
               )
               Text(
-                text = "Rezystancja [${resTableOutputUnit.ifBlank { "-" }}]",
+                text = "Rezystancja [${resTableOutputUnit.ifBlank { "Ω" }}]",
                 fontWeight = FontWeight.Bold,
                 fontSize = 12.sp,
                 color = TunerAmber,
@@ -2508,7 +2721,8 @@ fun AddComponentDialog(
             OutlinedTextField(
               value = resCharNotes,
               onValueChange = { resCharNotes = it },
-              label = { Text("Wskazówka / wzór dla tunera") },
+              label = { Text("Wskazówka / wzór / model termistora dla tunera") },
+              placeholder = { Text("np. Bosch NTC M12, opór w 20°C: 2500 Ω, stała B25/85 = 3977K") },
               modifier = Modifier.fillMaxWidth(),
               colors = customFieldColors(),
               minLines = 2
@@ -2516,24 +2730,782 @@ fun AddComponentDialog(
           }
         }
       }
+
+      // ==========================================
+      // KATEGORIA: MAP_SENSOR (Czujniki ciśnienia w dolocie)
+      // ==========================================
+      else if (category == ComponentCategory.MAP_SENSOR) {
+        SectionHeader(title = "${secCounter++}. Kalibracja liniowa MAP (Ciśnienie vs Napięcie)", icon = Icons.Default.ShowChart)
+        Spacer(Modifier.height(8.dp))
+
+        Card(
+          modifier = Modifier.fillMaxWidth(),
+          shape = RoundedCornerShape(12.dp),
+          colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated),
+          border = androidx.compose.foundation.BorderStroke(1.dp, BorderStroke)
+        ) {
+          Column(modifier = Modifier.padding(14.dp)) {
+            Text(
+              text = "Kalibracja liniowa MAP (kPa vs V)",
+              fontWeight = FontWeight.Bold,
+              fontSize = 13.sp,
+              color = TextPrimary
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+              text = "Podaj punkty kalibracji ciśnienia absolutnego (np. 20 kPa i 300 kPa) oraz odpowiadające im napięcia wyjściowe w woltach (V).",
+              fontSize = 11.5.sp,
+              color = TextSecondary,
+              lineHeight = 16.sp
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            // Ustalanie jednostek
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.spacedBy(8.dp),
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              OutlinedTextField(
+                value = tableInputUnit,
+                onValueChange = { tableInputUnit = it },
+                label = { Text("Jednostka ciśnienia (np. kPa)") },
+                modifier = Modifier.weight(1f),
+                colors = customFieldColors(),
+                singleLine = true
+              )
+              OutlinedTextField(
+                value = tableOutputUnit,
+                onValueChange = { tableOutputUnit = it },
+                label = { Text("Jednostka napięcia (np. V)") },
+                modifier = Modifier.weight(1f),
+                colors = customFieldColors(),
+                singleLine = true
+              )
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            // Nagłówek tabeli
+            Row(
+              modifier = Modifier
+                .fillMaxWidth()
+                .background(DarkSurfaceVariant, RoundedCornerShape(6.dp))
+                .padding(horizontal = 10.dp, vertical = 7.dp),
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Text(
+                text = "Ciśnienie [${tableInputUnit.ifBlank { "kPa" }}]",
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.sp,
+                color = TunerCyan,
+                modifier = Modifier.weight(1f)
+              )
+              Text(
+                text = "Napięcie [${tableOutputUnit.ifBlank { "V" }}]",
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.sp,
+                color = TunerAmber,
+                modifier = Modifier.weight(1f)
+              )
+              Spacer(Modifier.width(36.dp))
+            }
+
+            Spacer(Modifier.height(6.dp))
+
+            calPointsList.forEachIndexed { cIdx, pt ->
+              Row(
+                modifier = Modifier
+                  .fillMaxWidth()
+                  .padding(vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+              ) {
+                OutlinedTextField(
+                  value = pt.inVal,
+                  onValueChange = { newVal ->
+                    calPointsList[cIdx] = pt.copy(inVal = newVal)
+                  },
+                  placeholder = { Text("np. 100") },
+                  modifier = Modifier.weight(1f),
+                  colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = TunerCyan,
+                    unfocusedTextColor = TunerCyan,
+                    focusedBorderColor = TunerCyan,
+                    cursorColor = TunerCyan,
+                    focusedContainerColor = DarkSurface,
+                    unfocusedContainerColor = DarkSurface
+                  ),
+                  singleLine = true
+                )
+                OutlinedTextField(
+                  value = pt.outVal,
+                  onValueChange = { newVal ->
+                    calPointsList[cIdx] = pt.copy(outVal = newVal)
+                  },
+                  placeholder = { Text("np. 1.60") },
+                  modifier = Modifier.weight(1f),
+                  colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = TunerAmber,
+                    unfocusedTextColor = TunerAmber,
+                    focusedBorderColor = TunerAmber,
+                    cursorColor = TunerAmber,
+                    focusedContainerColor = DarkSurface,
+                    unfocusedContainerColor = DarkSurface
+                  ),
+                  singleLine = true
+                )
+                IconButton(
+                  onClick = { if (calPointsList.size > 1) calPointsList.removeAt(cIdx) },
+                  modifier = Modifier.size(36.dp)
+                ) {
+                  Icon(Icons.Default.Delete, contentDescription = "Usuń punkt", tint = TuningRed, modifier = Modifier.size(18.dp))
+                }
+              }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            OutlinedButton(
+              onClick = { calPointsList.add(CalPointDraft(inVal = "", inUnit = tableInputUnit, outVal = "", outUnit = tableOutputUnit)) },
+              shape = RoundedCornerShape(8.dp),
+              colors = ButtonDefaults.outlinedButtonColors(contentColor = TunerCyan),
+              modifier = Modifier.fillMaxWidth()
+            ) {
+              Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+              Spacer(Modifier.width(6.dp))
+              Text("Dodaj kolejny wiersz kalibracji", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            OutlinedTextField(
+              value = charNotes,
+              onValueChange = { charNotes = it },
+              label = { Text("Wzór matematyczny / zakres sensora MAP") },
+              placeholder = { Text("np. MAP 3-bar (300 kPa), V = 0.0152 * p + 0.1, zasilanie 5.0V VREF") },
+              modifier = Modifier.fillMaxWidth(),
+              colors = customFieldColors(),
+              minLines = 2
+            )
+          }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        // Opcja czujnika zespolonego T-MAP
+        Card(
+          modifier = Modifier.fillMaxWidth(),
+          shape = RoundedCornerShape(12.dp),
+          colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated),
+          border = androidx.compose.foundation.BorderStroke(1.dp, BorderStroke)
+        ) {
+          Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Column(modifier = Modifier.weight(1f)) {
+                Text(
+                  text = "Czujnik zespolony T-MAP (MAP + IAT 4-pin)",
+                  fontWeight = FontWeight.Bold,
+                  color = TextPrimary
+                )
+                Text(
+                  text = "Zaznacz, jeśli czujnik zawiera w jednej obudowie zarówno pomiar ciśnienia MAP, jak i termistor temperatury powietrza dolotowego IAT.",
+                  fontSize = 11.5.sp,
+                  color = TextSecondary
+                )
+              }
+              Switch(
+                checked = isComboTmapSensor,
+                onCheckedChange = { checked ->
+                  isComboTmapSensor = checked
+                  includeResistanceChar = checked
+                  pullupRequired = checked
+                  if (checked && pinsList.none { it.name.contains("IAT", ignoreCase = true) || it.type == PinType.SIGNAL_IN }) {
+                    pinsList.add(
+                      PinDraft(
+                        pinNumber = (pinsList.size + 1).toString(),
+                        name = "IAT Sygnał (NTC)",
+                        description = "Sygnał temperatury powietrza dolotowego do wejścia analogowego z pull-up 2490Ω",
+                        wireColor = "Szary",
+                        type = PinType.SIGNAL_IN,
+                        connectorName = "Wtyczka A"
+                      )
+                    )
+                  }
+                },
+                colors = SwitchDefaults.colors(
+                  checkedThumbColor = TunerCyan,
+                  checkedTrackColor = TunerCyan.copy(alpha = 0.4f)
+                )
+              )
+            }
+
+            if (isComboTmapSensor) {
+              Spacer(Modifier.height(14.dp))
+              Text(
+                text = "Zintegrowana krzywa termistora IAT (NTC):",
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.sp,
+                color = TunerCyan
+              )
+              Spacer(Modifier.height(6.dp))
+
+              OutlinedTextField(
+                value = pullupValue,
+                onValueChange = { pullupValue = it },
+                label = { Text("Rezystor pull-up dla zintegrowanego IAT (np. 2490 Ω do +5V)") },
+                modifier = Modifier.fillMaxWidth(),
+                colors = customFieldColors(),
+                singleLine = true
+              )
+
+              Spacer(Modifier.height(8.dp))
+
+              resPointsList.forEachIndexed { rIdx, rpt ->
+                Row(
+                  modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 3.dp),
+                  verticalAlignment = Alignment.CenterVertically,
+                  horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                  OutlinedTextField(
+                    value = rpt.inVal,
+                    onValueChange = { newVal -> resPointsList[rIdx] = rpt.copy(inVal = newVal) },
+                    placeholder = { Text("np. 20") },
+                    modifier = Modifier.weight(1f),
+                    colors = customFieldColors(),
+                    singleLine = true
+                  )
+                  OutlinedTextField(
+                    value = rpt.outVal,
+                    onValueChange = { newVal -> resPointsList[rIdx] = rpt.copy(outVal = newVal) },
+                    placeholder = { Text("np. 2500") },
+                    modifier = Modifier.weight(1.2f),
+                    colors = customFieldColors(),
+                    singleLine = true
+                  )
+                  IconButton(
+                    onClick = { if (resPointsList.size > 1) resPointsList.removeAt(rIdx) },
+                    modifier = Modifier.size(36.dp)
+                  ) {
+                    Icon(Icons.Default.Delete, contentDescription = "Usuń", tint = TuningRed, modifier = Modifier.size(18.dp))
+                  }
+                }
+              }
+
+              Spacer(Modifier.height(6.dp))
+
+              OutlinedButton(
+                onClick = { resPointsList.add(CalPointDraft(inVal = "", inUnit = "°C", outVal = "", outUnit = "Ω")) },
+                shape = RoundedCornerShape(8.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = TunerCyan),
+                modifier = Modifier.fillMaxWidth()
+              ) {
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Dodaj punkt IAT (°C vs Ω)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+              }
+            }
+          }
+        }
+      }
+
+      // ==========================================
+      // KATEGORIA: FUEL_PRESSURE / OIL_PRESSURE
+      // ==========================================
+      else if (category == ComponentCategory.FUEL_PRESSURE || category == ComponentCategory.OIL_PRESSURE) {
+        val pressType = if (category == ComponentCategory.FUEL_PRESSURE) "paliwa" else "oleju"
+        SectionHeader(title = "${secCounter++}. Kalibracja liniowa ciśnienia $pressType (Bar vs V)", icon = Icons.Default.ShowChart)
+        Spacer(Modifier.height(8.dp))
+
+        Card(
+          modifier = Modifier.fillMaxWidth(),
+          shape = RoundedCornerShape(12.dp),
+          colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated),
+          border = androidx.compose.foundation.BorderStroke(1.dp, BorderStroke)
+        ) {
+          Column(modifier = Modifier.padding(14.dp)) {
+            Text(
+              text = "Kalibracja liniowa ciśnienia $pressType (bar vs V)",
+              fontWeight = FontWeight.Bold,
+              fontSize = 13.sp,
+              color = TextPrimary
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+              text = "Wpisz punkty charakterystyki ciśnienia w barach i odpowiadające im napięcia w woltach (np. 0.0 bar = 0.5V, 10.0 bar = 4.5V).",
+              fontSize = 11.5.sp,
+              color = TextSecondary,
+              lineHeight = 16.sp
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            // Ustalanie jednostek
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.spacedBy(8.dp),
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              OutlinedTextField(
+                value = tableInputUnit,
+                onValueChange = { tableInputUnit = it },
+                label = { Text("Jedn. ciśnienia (np. bar)") },
+                modifier = Modifier.weight(1f),
+                colors = customFieldColors(),
+                singleLine = true
+              )
+              OutlinedTextField(
+                value = tableOutputUnit,
+                onValueChange = { tableOutputUnit = it },
+                label = { Text("Jedn. napięcia (np. V)") },
+                modifier = Modifier.weight(1f),
+                colors = customFieldColors(),
+                singleLine = true
+              )
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            // Nagłówek tabeli
+            Row(
+              modifier = Modifier
+                .fillMaxWidth()
+                .background(DarkSurfaceVariant, RoundedCornerShape(6.dp))
+                .padding(horizontal = 10.dp, vertical = 7.dp),
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Text(
+                text = "Ciśnienie [${tableInputUnit.ifBlank { "bar" }}]",
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.sp,
+                color = TunerCyan,
+                modifier = Modifier.weight(1f)
+              )
+              Text(
+                text = "Napięcie [${tableOutputUnit.ifBlank { "V" }}]",
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.sp,
+                color = TunerAmber,
+                modifier = Modifier.weight(1f)
+              )
+              Spacer(Modifier.width(36.dp))
+            }
+
+            Spacer(Modifier.height(6.dp))
+
+            calPointsList.forEachIndexed { cIdx, pt ->
+              Row(
+                modifier = Modifier
+                  .fillMaxWidth()
+                  .padding(vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+              ) {
+                OutlinedTextField(
+                  value = pt.inVal,
+                  onValueChange = { newVal -> calPointsList[cIdx] = pt.copy(inVal = newVal) },
+                  placeholder = { Text("np. 0.0") },
+                  modifier = Modifier.weight(1f),
+                  colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = TunerCyan,
+                    unfocusedTextColor = TunerCyan,
+                    focusedBorderColor = TunerCyan,
+                    cursorColor = TunerCyan,
+                    focusedContainerColor = DarkSurface,
+                    unfocusedContainerColor = DarkSurface
+                  ),
+                  singleLine = true
+                )
+                OutlinedTextField(
+                  value = pt.outVal,
+                  onValueChange = { newVal -> calPointsList[cIdx] = pt.copy(outVal = newVal) },
+                  placeholder = { Text("np. 0.50") },
+                  modifier = Modifier.weight(1f),
+                  colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = TunerAmber,
+                    unfocusedTextColor = TunerAmber,
+                    focusedBorderColor = TunerAmber,
+                    cursorColor = TunerAmber,
+                    focusedContainerColor = DarkSurface,
+                    unfocusedContainerColor = DarkSurface
+                  ),
+                  singleLine = true
+                )
+                IconButton(
+                  onClick = { if (calPointsList.size > 1) calPointsList.removeAt(cIdx) },
+                  modifier = Modifier.size(36.dp)
+                ) {
+                  Icon(Icons.Default.Delete, contentDescription = "Usuń punkt", tint = TuningRed, modifier = Modifier.size(18.dp))
+                }
+              }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            OutlinedButton(
+              onClick = { calPointsList.add(CalPointDraft(inVal = "", inUnit = tableInputUnit, outVal = "", outUnit = tableOutputUnit)) },
+              shape = RoundedCornerShape(8.dp),
+              colors = ButtonDefaults.outlinedButtonColors(contentColor = TunerCyan),
+              modifier = Modifier.fillMaxWidth()
+            ) {
+              Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+              Spacer(Modifier.width(6.dp))
+              Text("Dodaj punkt kalibracji", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            OutlinedTextField(
+              value = charNotes,
+              onValueChange = { charNotes = it },
+              label = { Text("Wzór kalibracji / zakres czujnika") },
+              placeholder = { Text("np. Zakres 0-10 bar, 0.5V = 0 bar, 4.5V = 10 bar, gwint 1/8 NPT") },
+              modifier = Modifier.fillMaxWidth(),
+              colors = customFieldColors(),
+              minLines = 2
+            )
+          }
+        }
+
+        // Opcja 2-w-1 ciśnienie + temperatura dla oleju
+        if (category == ComponentCategory.OIL_PRESSURE) {
+          Spacer(Modifier.height(16.dp))
+          Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated),
+            border = androidx.compose.foundation.BorderStroke(1.dp, BorderStroke)
+          ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+              ) {
+                Column(modifier = Modifier.weight(1f)) {
+                  Text(
+                    text = "Czujnik zespolony 2-w-1 (Ciśnienie + Temp. oleju)",
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                  )
+                  Text(
+                    text = "Zaznacz, jeśli czujnik oleju posiada dodatkowy pin z termistorem temperatury oleju (np. Bosch 0 261 230 340).",
+                    fontSize = 11.5.sp,
+                    color = TextSecondary
+                  )
+                }
+                Switch(
+                  checked = isComboOilPressureTempSensor,
+                  onCheckedChange = { checked ->
+                    isComboOilPressureTempSensor = checked
+                    includeResistanceChar = checked
+                    pullupRequired = checked
+                    if (checked && pinsList.none { it.name.contains("Temp", ignoreCase = true) || it.type == PinType.SIGNAL_IN }) {
+                      pinsList.add(
+                        PinDraft(
+                          pinNumber = (pinsList.size + 1).toString(),
+                          name = "Temp. oleju (NTC)",
+                          description = "Sygnał temperatury oleju do wejścia analogowego z pull-up 2490Ω",
+                          wireColor = "Żółty",
+                          type = PinType.SIGNAL_IN,
+                          connectorName = "Wtyczka A"
+                        )
+                      )
+                    }
+                  },
+                  colors = SwitchDefaults.colors(
+                    checkedThumbColor = TunerCyan,
+                    checkedTrackColor = TunerCyan.copy(alpha = 0.4f)
+                  )
+                )
+              }
+
+              if (isComboOilPressureTempSensor) {
+                Spacer(Modifier.height(14.dp))
+                Text(
+                  text = "Zintegrowana krzywa temperatury oleju (NTC):",
+                  fontWeight = FontWeight.Bold,
+                  fontSize = 12.sp,
+                  color = TunerCyan
+                )
+                Spacer(Modifier.height(6.dp))
+
+                OutlinedTextField(
+                  value = pullupValue,
+                  onValueChange = { pullupValue = it },
+                  label = { Text("Rezystor pull-up dla temperatury oleju (np. 2490 Ω)") },
+                  modifier = Modifier.fillMaxWidth(),
+                  colors = customFieldColors(),
+                  singleLine = true
+                )
+
+                Spacer(Modifier.height(8.dp))
+
+                resPointsList.forEachIndexed { rIdx, rpt ->
+                  Row(
+                    modifier = Modifier
+                      .fillMaxWidth()
+                      .padding(vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                  ) {
+                    OutlinedTextField(
+                      value = rpt.inVal,
+                      onValueChange = { newVal -> resPointsList[rIdx] = rpt.copy(inVal = newVal) },
+                      placeholder = { Text("np. 80") },
+                      modifier = Modifier.weight(1f),
+                      colors = customFieldColors(),
+                      singleLine = true
+                    )
+                    OutlinedTextField(
+                      value = rpt.outVal,
+                      onValueChange = { newVal -> resPointsList[rIdx] = rpt.copy(outVal = newVal) },
+                      placeholder = { Text("np. 320") },
+                      modifier = Modifier.weight(1.2f),
+                      colors = customFieldColors(),
+                      singleLine = true
+                    )
+                    IconButton(
+                      onClick = { if (resPointsList.size > 1) resPointsList.removeAt(rIdx) },
+                      modifier = Modifier.size(36.dp)
+                    ) {
+                      Icon(Icons.Default.Delete, contentDescription = "Usuń", tint = TuningRed, modifier = Modifier.size(18.dp))
+                    }
+                  }
+                }
+
+                Spacer(Modifier.height(6.dp))
+
+                OutlinedButton(
+                  onClick = { resPointsList.add(CalPointDraft(inVal = "", inUnit = "°C", outVal = "", outUnit = "Ω")) },
+                  shape = RoundedCornerShape(8.dp),
+                  colors = ButtonDefaults.outlinedButtonColors(contentColor = TunerCyan),
+                  modifier = Modifier.fillMaxWidth()
+                ) {
+                  Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                  Spacer(Modifier.width(6.dp))
+                  Text("Dodaj punkt temp. oleju (°C vs Ω)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // ==========================================
+      // KATEGORIA: LAMBDA (Sondy szerokopasmowe)
+      // ==========================================
+      else if (category == ComponentCategory.LAMBDA) {
+        SectionHeader(title = "${secCounter++}. Kontroler szerokopasmowy i złącze LSU", icon = Icons.Default.Speed)
+        Spacer(Modifier.height(8.dp))
+
+        Card(
+          modifier = Modifier.fillMaxWidth(),
+          shape = RoundedCornerShape(12.dp),
+          colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated),
+          border = androidx.compose.foundation.BorderStroke(1.dp, BorderStroke)
+        ) {
+          Column(modifier = Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              Icon(Icons.Default.Speed, contentDescription = null, tint = TunerCyan, modifier = Modifier.size(20.dp))
+              Spacer(Modifier.width(8.dp))
+              Text(
+                text = "Specyfika sondy szerokopasmowej LSU",
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.5.sp,
+                color = TextPrimary
+              )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+              text = "Sonda szerokopasmowa (np. Bosch LSU 4.9 lub 4.2) nie posiada uproszczonej krzywej napięcia 0-5V. Wymaga dedykowanego kontrolera z regulatorem prądu pompowania tlenu (Ip) oraz sterownikiem grzałki PID (np. wbudowany kontroler szerokopasmowy w EMU Black, moduł Lambda-to-CAN, Spartan 3 lub kontroler AEM). Pełny 6-pinowy układ połączeń został wygenerowany w Sekcji 3 powyżej.",
+              fontSize = 12.sp,
+              color = TextSecondary,
+              lineHeight = 17.sp
+            )
+          }
+        }
+      }
+
+      // ==========================================
+      // KATEGORIA: ECU / MODULES (Sterowniki standalone i moduły CAN)
+      // ==========================================
+      else if (category == ComponentCategory.ECU || category == ComponentCategory.MODULES) {
+        SectionHeader(title = "${secCounter++}. Konfiguracja magistrali i modułu", icon = Icons.Default.Info)
+        Spacer(Modifier.height(8.dp))
+
+        Card(
+          modifier = Modifier.fillMaxWidth(),
+          shape = RoundedCornerShape(12.dp),
+          colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated),
+          border = androidx.compose.foundation.BorderStroke(1.dp, BorderStroke)
+        ) {
+          Column(modifier = Modifier.padding(14.dp)) {
+            Text(
+              text = "Zarządzanie połączeniami sterownika standalone",
+              fontWeight = FontWeight.Bold,
+              fontSize = 13.5.sp,
+              color = TextPrimary
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+              text = "Dla sterowników silnika i modułów magistrali przypisuj dedykowane gniazda i wtyczki (np. Wtyczka A, Wtyczka B) z poszczególnymi typami pinów (zasilania, masy, wyjścia wtryskiwaczy, wyjścia zapłonu, magistrala CAN-Bus) bezpośrednio w Sekcji 3.",
+              fontSize = 12.sp,
+              color = TextSecondary,
+              lineHeight = 17.sp
+            )
+          }
+        }
+      }
+
+      // ==========================================
+      // KATEGORIA: OTHER (Inne niestandardowe podzespoły)
+      // ==========================================
+      else {
+        SectionHeader(title = "${secCounter++}. Opcjonalne charakterystyki podzespołu", icon = Icons.Default.ShowChart)
+        Spacer(Modifier.height(8.dp))
+
+        Card(
+          modifier = Modifier.fillMaxWidth(),
+          shape = RoundedCornerShape(12.dp),
+          colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated),
+          border = androidx.compose.foundation.BorderStroke(1.dp, BorderStroke)
+        ) {
+          Column(modifier = Modifier.padding(14.dp)) {
+            Text(
+              text = "Dostosuj tabele do niestandardowego urządzenia:",
+              fontWeight = FontWeight.Bold,
+              color = TextPrimary
+            )
+            Spacer(Modifier.height(10.dp))
+
+            // Przełącznik kalibracji liniowej
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Text("Tabela kalibracji (np. napięcie vs wyjście)", fontSize = 12.5.sp, color = TextPrimary)
+              Switch(
+                checked = showGenericOtherCalibration,
+                onCheckedChange = { showGenericOtherCalibration = it },
+                colors = SwitchDefaults.colors(checkedThumbColor = TunerCyan, checkedTrackColor = TunerCyan.copy(alpha = 0.4f))
+              )
+            }
+
+            if (showGenericOtherCalibration) {
+              Spacer(Modifier.height(8.dp))
+              calPointsList.forEachIndexed { cIdx, pt ->
+                Row(
+                  modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                  horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                  OutlinedTextField(
+                    value = pt.inVal,
+                    onValueChange = { newVal -> calPointsList[cIdx] = pt.copy(inVal = newVal) },
+                    label = { Text("Wartość") },
+                    modifier = Modifier.weight(1f),
+                    colors = customFieldColors(),
+                    singleLine = true
+                  )
+                  OutlinedTextField(
+                    value = pt.outVal,
+                    onValueChange = { newVal -> calPointsList[cIdx] = pt.copy(outVal = newVal) },
+                    label = { Text("Sygnał [V]") },
+                    modifier = Modifier.weight(1f),
+                    colors = customFieldColors(),
+                    singleLine = true
+                  )
+                  IconButton(onClick = { if (calPointsList.size > 1) calPointsList.removeAt(cIdx) }) {
+                    Icon(Icons.Default.Delete, contentDescription = "Usuń", tint = TuningRed, modifier = Modifier.size(18.dp))
+                  }
+                }
+              }
+              OutlinedButton(
+                onClick = { calPointsList.add(CalPointDraft(inVal = "", inUnit = "", outVal = "", outUnit = "V")) },
+                shape = RoundedCornerShape(8.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = TunerCyan),
+                modifier = Modifier.fillMaxWidth()
+              ) {
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Dodaj punkt kalibracji", fontSize = 12.sp)
+              }
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            // Przełącznik NTC / Pull-up
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Text("Rezystor Pull-up i termistor NTC", fontSize = 12.5.sp, color = TextPrimary)
+              Switch(
+                checked = showGenericOtherResistance,
+                onCheckedChange = {
+                  showGenericOtherResistance = it
+                  showGenericOtherPullup = it
+                  pullupRequired = it
+                  includeResistanceChar = it
+                },
+                colors = SwitchDefaults.colors(checkedThumbColor = TunerAmber, checkedTrackColor = TunerAmber.copy(alpha = 0.4f))
+              )
+            }
+
+            if (showGenericOtherResistance) {
+              Spacer(Modifier.height(8.dp))
+              OutlinedTextField(
+                value = pullupValue,
+                onValueChange = { pullupValue = it },
+                label = { Text("Wartość rezystora pull-up") },
+                modifier = Modifier.fillMaxWidth(),
+                colors = customFieldColors(),
+                singleLine = true
+              )
+            }
+          }
+        }
       }
 
       Spacer(Modifier.height(20.dp))
 
-      // Ważne informacje tunera
-      val notesSectionNum = if (category == ComponentCategory.THROTTLE) "6" else "7"
-      SectionHeader(title = "$notesSectionNum. Ważne informacje i ostrzeżenia", icon = Icons.Default.Info)
+      // ==========================================
+      // WAŻNE INFORMACJE I OSTRZEŻENIA DLA TUNERA
+      // ==========================================
+      val placeholderNotes = when (category) {
+        ComponentCategory.THROTTLE -> "np. Częstotliwość PWM silnika DBW (1000 Hz w EMU), napięcia krańcowe TPS1 (0.5V-4.5V) i TPS2 (4.5V-0.5V)..."
+        ComponentCategory.INJECTORS -> "np. Rezystancja cewki wtryskiwacza (High-Z 12-16 Ohm), kąt stożka rozpylania paliwa, kompatybilność z E85/metanolem..."
+        ComponentCategory.COILS -> "np. Maksymalny dopuszczalny dwell time przy 14V (2.4 ms). Podłączyć masę iskry bezpośrednio do głowicy silnika!"
+        ComponentCategory.TEMP_SENSOR -> "np. Gwint montażowy (M12x1.5), typ NTC, czas odpowiedzi termistora, moment dokręcenia (max 15 Nm)..."
+        ComponentCategory.MAP_SENSOR -> "np. Montaż króćcem do dołu aby uniknąć zalewania olejem z dolotu, zakres ciśnienia doładowania..."
+        ComponentCategory.FUEL_PRESSURE, ComponentCategory.OIL_PRESSURE -> "np. Gwint 1/8 NPT lub M10x1, moment dokręcenia, dopuszczalny zakres temperatur oleju..."
+        ComponentCategory.LAMBDA -> "np. Kąt montażu w wydechu min. 10-15° ponad poziom, odległość min. 60-80cm od turbosprężarki, nie stosować paliwa z ołowiem..."
+        ComponentCategory.ECU, ComponentCategory.MODULES -> "np. Wersja firmware, rezystor terminujący CAN 120Ω, zalecany bezpiecznik główny 15A..."
+        else -> "Wpisz wszystko co tuner musi wiedzieć montując ten element..."
+      }
+
+      SectionHeader(title = "${secCounter++}. Ważne informacje i ostrzeżenia dla tunera", icon = Icons.Default.Info)
       Spacer(Modifier.height(8.dp))
 
       OutlinedTextField(
         value = importantNotes,
         onValueChange = { importantNotes = it },
-        label = { Text("Uwagi montażowe / typ wtyczki / momenty dokręcenia") },
-        placeholder = { Text("Wpisz wszystko co tuner musi wiedzieć montując ten element...") },
+        label = { Text("Uwagi montażowe / typ wtyczki / parametry pracy") },
+        placeholder = { Text(placeholderNotes) },
         modifier = Modifier.fillMaxWidth(),
         colors = customFieldColors(),
         minLines = 3
       )
+
 
       Spacer(Modifier.height(14.dp))
 
