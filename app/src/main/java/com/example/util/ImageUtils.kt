@@ -133,6 +133,8 @@ object ImageUtils {
     }
   }
 
+  private val modelCache = java.util.concurrent.ConcurrentHashMap<String, Any>(128)
+
   /**
    * Returns a model usable by Coil (ImageRequest.Builder.data):
    * - File for cached base64 photos or local files
@@ -143,7 +145,9 @@ object ImageUtils {
     if (source.isNullOrBlank()) return null
     val trimmed = source.trim()
 
-    if (trimmed.startsWith("data:image")) {
+    modelCache[trimmed]?.let { return it }
+
+    val model: Any? = if (trimmed.startsWith("data:image")) {
       try {
         val base64Part = trimmed.substringAfter("base64,")
         // Use full SHA-256 of the base64 content to guarantee unique caching per image
@@ -151,31 +155,34 @@ object ImageUtils {
         val cacheFile = File(context.cacheDir, "$FILE_PREFIX$hash.jpg")
 
         if (cacheFile.exists() && cacheFile.length() > 0) {
-          return cacheFile
-        }
+          cacheFile
+        } else {
+          // Decode Base64 data
+          val bytes = Base64.decode(base64Part, Base64.DEFAULT)
 
-        // Decode Base64 data
-        val bytes = Base64.decode(base64Part, Base64.DEFAULT)
-
-        // Cache for next time
-        try {
-          FileOutputStream(cacheFile).use { it.write(bytes) }
-          return cacheFile
-        } catch (_: Exception) {
-          return bytes
+          // Cache for next time
+          try {
+            FileOutputStream(cacheFile).use { it.write(bytes) }
+            cacheFile
+          } catch (_: Exception) {
+            bytes
+          }
         }
       } catch (e: Exception) {
         Log.e(TAG, "Error decoding base64 image", e)
-        return null
+        null
       }
-    }
-
-    if (trimmed.startsWith("/")) {
+    } else if (trimmed.startsWith("/")) {
       val file = File(trimmed)
-      if (file.exists()) return file
+      if (file.exists()) file else null
+    } else {
+      trimmed
     }
 
-    return trimmed
+    if (model != null) {
+      modelCache[trimmed] = model
+    }
+    return model
   }
 
   private fun getExifRotation(context: Context, uri: Uri): Float {

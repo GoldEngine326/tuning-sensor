@@ -1,5 +1,8 @@
 package com.example.model
 
+import androidx.compose.runtime.Immutable
+
+@Immutable
 enum class ComponentCategory(val displayName: String) {
   ALL("Wszystkie"),
   MAP_SENSOR("MAP Sensory"),
@@ -15,6 +18,7 @@ enum class ComponentCategory(val displayName: String) {
   OTHER("Inne")
 }
 
+@Immutable
 enum class PinType(val label: String, val colorHex: Long) {
   POWER("+12V / Zasilanie", 0xFFFF3B30),
   GROUND("Masa (GND)", 0xFF8E8E93),
@@ -31,6 +35,7 @@ enum class PinType(val label: String, val colorHex: Long) {
   OTHER("Inny", 0xFF6C757D)
 }
 
+@Immutable
 data class PinInfo(
   val pinNumber: String,
   val name: String,
@@ -40,6 +45,7 @@ data class PinInfo(
   val connectorName: String = ""
 )
 
+@Immutable
 enum class CharType(val displayName: String) {
   VOLTAGE_PRESSURE("Napięcie vs Ciśnienie"),
   RESISTANCE_TEMP("Rezystancja vs Temperatura (NTC)"),
@@ -50,6 +56,7 @@ enum class CharType(val displayName: String) {
   OTHER("Charakterystyka ogólna")
 }
 
+@Immutable
 data class CalibrationPoint(
   val inputValue: String,
   val inputUnit: String,
@@ -57,6 +64,7 @@ data class CalibrationPoint(
   val outputUnit: String
 )
 
+@Immutable
 data class CharacteristicInfo(
   val type: CharType,
   val title: String,
@@ -66,11 +74,13 @@ data class CharacteristicInfo(
   val formulaOrNotes: String = ""
 )
 
+@Immutable
 data class DeadTimePoint(
   val voltage: String,
   val timeMs: String
 )
 
+@Immutable
 data class DeadTimeTable(
   val tableName: String, // np. "3.0 bar (Diff)", "4.0 bar (Diff)"
   val pressureUnit: String = "bar",
@@ -78,6 +88,7 @@ data class DeadTimeTable(
   val notes: String = ""
 )
 
+@Immutable
 data class TuningComponent(
   val id: String,
   val name: String,
@@ -123,6 +134,9 @@ data class TuningComponent(
   fun allImages(): List<String> {
     return if (images.isNotEmpty()) images else if (imageUrl.isNotBlank()) listOf(imageUrl) else emptyList()
   }
+
+  val totalImagesCount: Int
+    get() = if (images.isNotEmpty()) images.size else if (imageUrl.isNotBlank()) 1 else 0
 
   val primaryImage: String
     get() = images.firstOrNull() ?: imageUrl

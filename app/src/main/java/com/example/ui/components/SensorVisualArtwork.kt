@@ -13,6 +13,10 @@ import androidx.compose.material.icons.filled.BrokenImage
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,6 +32,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import com.example.ui.theme.CarbonBlack
@@ -86,34 +91,50 @@ fun ComponentThumbnail(
   vectorKey: String,
   modifier: Modifier = Modifier
 ) {
+  val context = LocalContext.current
+  val imageModel = remember(imageUrl) {
+    ImageUtils.getImageModel(context, imageUrl)
+  }
+
   Box(
     modifier = modifier
       .clip(RoundedCornerShape(10.dp))
       .background(DarkSurfaceVariant),
     contentAlignment = Alignment.Center
   ) {
-    val context = LocalContext.current
-    val imageModel = ImageUtils.getImageModel(context, imageUrl)
-    if (imageModel != null) {
-      SubcomposeAsyncImage(
-        model = ImageRequest.Builder(context)
-          .data(imageModel)
-          .crossfade(true)
-          .build(),
-        contentDescription = "Zdjęcie podzespołu",
-        contentScale = ContentScale.Crop,
-        modifier = Modifier.fillMaxSize(),
-        loading = {
-          Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = TuningRed, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
-          }
-        },
-        error = {
-          VectorIllustration(vectorKey = vectorKey)
-        }
-      )
-    } else {
+    if (imageModel == null) {
       VectorIllustration(vectorKey = vectorKey)
+    } else {
+      var isLoaded by remember(imageUrl) { mutableStateOf(false) }
+      var isError by remember(imageUrl) { mutableStateOf(false) }
+
+      // Immediate vector illustration as lightweight placeholder without spinning progress bar jank
+      if (!isLoaded || isError) {
+        VectorIllustration(vectorKey = vectorKey)
+      }
+
+      if (!isError) {
+        val imageRequest = remember(imageModel, context) {
+          ImageRequest.Builder(context)
+            .data(imageModel)
+            .size(240, 240) // Target downsampled thumbnail resolution to save memory and avoid GC stalls
+            .crossfade(100)
+            .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
+            .diskCachePolicy(coil.request.CachePolicy.ENABLED)
+            .listener(
+              onSuccess = { _, _ -> isLoaded = true },
+              onError = { _, _ -> isError = true }
+            )
+            .build()
+        }
+
+        AsyncImage(
+          model = imageRequest,
+          contentDescription = "Zdjęcie podzespołu",
+          contentScale = ContentScale.Crop,
+          modifier = Modifier.fillMaxSize()
+        )
+      }
     }
   }
 }

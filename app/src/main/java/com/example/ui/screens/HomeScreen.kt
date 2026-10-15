@@ -272,13 +272,14 @@ fun HomeScreen(
         Spacer(Modifier.height(10.dp))
 
         // Category filter chips row
+        val categories = remember { ComponentCategory.values() }
         Row(
           modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState()),
           horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-          ComponentCategory.values().forEach { cat ->
+          categories.forEach { cat ->
             val isSelected = selectedCategory == cat
             FilterChip(
               selected = isSelected,
@@ -368,13 +369,17 @@ fun HomeScreen(
           contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
           verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-          items(filteredComponents, key = { it.id }) { component ->
+          items(
+            items = filteredComponents,
+            key = { it.id },
+            contentType = { "component_card" }
+          ) { component ->
             ComponentListCard(
               component = component,
               onClick = { onComponentClick(component) }
             )
           }
-          item {
+          item(key = "bottom_fab_spacer", contentType = "bottom_spacer") {
             Spacer(Modifier.height(72.dp)) // padding for FAB
           }
         }
@@ -383,11 +388,22 @@ fun HomeScreen(
   }
 }
 
+private val ComponentCardBorder = androidx.compose.foundation.BorderStroke(1.dp, BorderStroke)
+
 @Composable
 fun ComponentListCard(
   component: TuningComponent,
   onClick: () -> Unit
 ) {
+  val totalImages = component.totalImagesCount
+  val ratingText = remember(component.rating) {
+    String.format(Locale.US, "%.1f", component.rating)
+  }
+  val pinCount = component.pinout.size
+  val pinText = remember(pinCount) {
+    "$pinCount pin${if (pinCount == 1) "" else if (pinCount in 2..4) "y" else "ów"}"
+  }
+
   Card(
     modifier = Modifier
       .fillMaxWidth()
@@ -395,7 +411,7 @@ fun ComponentListCard(
       .testTag("component_card_${component.id}"),
     shape = RoundedCornerShape(14.dp),
     colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated),
-    border = androidx.compose.foundation.BorderStroke(1.dp, BorderStroke)
+    border = ComponentCardBorder
   ) {
     Row(
       modifier = Modifier
@@ -410,7 +426,7 @@ fun ComponentListCard(
           vectorKey = component.vectorIllustrationKey,
           modifier = Modifier.size(76.dp)
         )
-        if (component.allImages().size > 1) {
+        if (totalImages > 1) {
           Box(
             modifier = Modifier
               .align(Alignment.BottomEnd)
@@ -419,7 +435,7 @@ fun ComponentListCard(
               .padding(horizontal = 4.dp, vertical = 1.dp)
           ) {
             Text(
-              text = "📷 ${component.allImages().size}",
+              text = "📷 $totalImages",
               fontSize = 9.sp,
               color = Color.White,
               fontWeight = FontWeight.Bold
@@ -455,7 +471,7 @@ fun ComponentListCard(
             Icon(Icons.Default.Star, contentDescription = null, tint = TunerAmber, modifier = Modifier.size(14.dp))
             Spacer(Modifier.width(2.dp))
             Text(
-              text = String.format(Locale.US, "%.1f", component.rating),
+              text = ratingText,
               fontWeight = FontWeight.Bold,
               fontSize = 12.sp,
               color = TextPrimary
@@ -499,7 +515,7 @@ fun ComponentListCard(
             Icon(Icons.Default.ElectricalServices, contentDescription = null, tint = TextMuted, modifier = Modifier.size(13.dp))
             Spacer(Modifier.width(3.dp))
             Text(
-              text = "${component.pinout.size} pin${if (component.pinout.size == 1) "" else if (component.pinout.size in 2..4) "y" else "ów"}",
+              text = pinText,
               fontSize = 11.sp,
               color = TextSecondary
             )
