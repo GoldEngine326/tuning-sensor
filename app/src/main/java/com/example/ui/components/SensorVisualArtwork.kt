@@ -102,53 +102,40 @@ fun ComponentThumbnail(
       .background(DarkSurfaceVariant),
     contentAlignment = Alignment.Center
   ) {
-    if (imageModel == null) {
-      VectorIllustration(vectorKey = vectorKey)
+    if (imageModel != null) {
+      val imageRequest = remember(imageModel, context) {
+        ImageRequest.Builder(context)
+          .data(imageModel)
+          .size(160, 160)
+          .crossfade(false)
+          .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
+          .diskCachePolicy(coil.request.CachePolicy.ENABLED)
+          .build()
+      }
+
+      AsyncImage(
+        model = imageRequest,
+        contentDescription = "Zdjęcie podzespołu",
+        contentScale = ContentScale.Crop,
+        modifier = Modifier.fillMaxSize()
+      )
     } else {
-      var isLoaded by remember(imageUrl) { mutableStateOf(false) }
-      var isError by remember(imageUrl) { mutableStateOf(false) }
-
-      // Immediate vector illustration as lightweight placeholder without spinning progress bar jank
-      if (!isLoaded || isError) {
-        VectorIllustration(vectorKey = vectorKey)
-      }
-
-      if (!isError) {
-        val imageRequest = remember(imageModel, context) {
-          ImageRequest.Builder(context)
-            .data(imageModel)
-            .size(240, 240) // Target downsampled thumbnail resolution to save memory and avoid GC stalls
-            .crossfade(100)
-            .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
-            .diskCachePolicy(coil.request.CachePolicy.ENABLED)
-            .listener(
-              onSuccess = { _, _ -> isLoaded = true },
-              onError = { _, _ -> isError = true }
-            )
-            .build()
-        }
-
-        AsyncImage(
-          model = imageRequest,
-          contentDescription = "Zdjęcie podzespołu",
-          contentScale = ContentScale.Crop,
-          modifier = Modifier.fillMaxSize()
-        )
-      }
+      VectorIllustration(vectorKey = vectorKey)
     }
   }
 }
+
+private val VectorBackgroundBrush = Brush.verticalGradient(
+  colors = listOf(DarkSurfaceElevated, CarbonBlack)
+)
+private val DashEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 4f), 0f)
 
 @Composable
 fun VectorIllustration(vectorKey: String, modifier: Modifier = Modifier) {
   Box(
     modifier = modifier
       .fillMaxSize()
-      .background(
-        Brush.verticalGradient(
-          colors = listOf(DarkSurfaceElevated, CarbonBlack)
-        )
-      ),
+      .background(VectorBackgroundBrush),
     contentAlignment = Alignment.Center
   ) {
     Canvas(modifier = Modifier.fillMaxSize()) {
@@ -174,11 +161,9 @@ fun VectorIllustration(vectorKey: String, modifier: Modifier = Modifier) {
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawVwCoilIllustration(cx: Float, cy: Float) {
   // Glow
   drawCircle(
-    brush = Brush.radialGradient(
-      colors = listOf(TuningRed.copy(alpha = 0.25f), Color.Transparent),
-      center = Offset(cx, cy),
-      radius = 120f
-    )
+    color = TuningRed.copy(alpha = 0.2f),
+    center = Offset(cx, cy),
+    radius = 50f
   )
 
   // Coil Red Head
@@ -245,11 +230,9 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawVwCoilIllustrat
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawMapSensorIllustration(cx: Float, cy: Float) {
   // Pressure wave aura
   drawCircle(
-    brush = Brush.radialGradient(
-      colors = listOf(TunerCyan.copy(alpha = 0.2f), Color.Transparent),
-      center = Offset(cx, cy),
-      radius = 110f
-    )
+    color = TunerCyan.copy(alpha = 0.18f),
+    center = Offset(cx, cy),
+    radius = 50f
   )
 
   // Main Black Body
@@ -468,11 +451,9 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawGenericSensorIl
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawThrottleIllustration(cx: Float, cy: Float) {
   // Glow
   drawCircle(
-    brush = Brush.radialGradient(
-      colors = listOf(TunerCyan.copy(alpha = 0.2f), Color.Transparent),
-      center = Offset(cx, cy),
-      radius = 120f
-    )
+    color = TunerCyan.copy(alpha = 0.18f),
+    center = Offset(cx, cy),
+    radius = 50f
   )
 
   // Outer Flange Body
@@ -507,7 +488,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawThrottleIllustr
     color = TunerAmber,
     radius = 48f,
     center = Offset(cx, cy),
-    style = Stroke(width = 2.5f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 4f), 0f))
+    style = Stroke(width = 2.5f, pathEffect = DashEffect)
   )
 
   // Inner Throttle Bore

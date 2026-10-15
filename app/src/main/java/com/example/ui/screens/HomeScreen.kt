@@ -376,7 +376,7 @@ fun HomeScreen(
           ) { component ->
             ComponentListCard(
               component = component,
-              onClick = { onComponentClick(component) }
+              onComponentClick = onComponentClick
             )
           }
           item(key = "bottom_fab_spacer", contentType = "bottom_spacer") {
@@ -389,11 +389,17 @@ fun HomeScreen(
 }
 
 private val ComponentCardBorder = androidx.compose.foundation.BorderStroke(1.dp, BorderStroke)
+private val CardShape = RoundedCornerShape(14.dp)
+private val BadgeShape = RoundedCornerShape(4.dp)
+private val RedBadgeBg = TuningRed.copy(alpha = 0.15f)
+private val CyanBadgeBg = TunerCyan.copy(alpha = 0.15f)
+private val AmberBadgeBg = TunerAmber.copy(alpha = 0.15f)
+private val PhotoCountBg = Color.Black.copy(alpha = 0.75f)
 
 @Composable
 fun ComponentListCard(
   component: TuningComponent,
-  onClick: () -> Unit
+  onComponentClick: (TuningComponent) -> Unit
 ) {
   val totalImages = component.totalImagesCount
   val ratingText = remember(component.rating) {
@@ -407,9 +413,9 @@ fun ComponentListCard(
   Card(
     modifier = Modifier
       .fillMaxWidth()
-      .clickable { onClick() }
+      .clickable { onComponentClick(component) }
       .testTag("component_card_${component.id}"),
-    shape = RoundedCornerShape(14.dp),
+    shape = CardShape,
     colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated),
     border = ComponentCardBorder
   ) {
@@ -431,7 +437,7 @@ fun ComponentListCard(
             modifier = Modifier
               .align(Alignment.BottomEnd)
               .padding(3.dp)
-              .background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(4.dp))
+              .background(PhotoCountBg, BadgeShape)
               .padding(horizontal = 4.dp, vertical = 1.dp)
           ) {
             Text(
@@ -455,7 +461,7 @@ fun ComponentListCard(
           // Category badge
           Box(
             modifier = Modifier
-              .background(TuningRed.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+              .background(RedBadgeBg, BadgeShape)
               .padding(horizontal = 6.dp, vertical = 2.dp)
           ) {
             Text(
@@ -527,7 +533,7 @@ fun ComponentListCard(
             Row(
               verticalAlignment = Alignment.CenterVertically,
               modifier = Modifier
-                .background(TunerCyan.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                .background(CyanBadgeBg, BadgeShape)
                 .padding(horizontal = 5.dp, vertical = 1.dp)
             ) {
               Icon(Icons.Default.Speed, contentDescription = null, tint = TunerCyan, modifier = Modifier.size(11.dp))
@@ -543,7 +549,7 @@ fun ComponentListCard(
             Row(
               verticalAlignment = Alignment.CenterVertically,
               modifier = Modifier
-                .background(TunerCyan.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                .background(CyanBadgeBg, BadgeShape)
                 .padding(horizontal = 5.dp, vertical = 1.dp)
             ) {
               Icon(Icons.Default.Architecture, contentDescription = null, tint = TunerCyan, modifier = Modifier.size(11.dp))
@@ -559,7 +565,7 @@ fun ComponentListCard(
             Row(
               verticalAlignment = Alignment.CenterVertically,
               modifier = Modifier
-                .background(TunerAmber.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                .background(AmberBadgeBg, BadgeShape)
                 .padding(horizontal = 5.dp, vertical = 1.dp)
             ) {
               Icon(Icons.Default.Warning, contentDescription = null, tint = TunerAmber, modifier = Modifier.size(11.dp))
