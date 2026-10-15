@@ -347,13 +347,23 @@ fun AddComponentDialog(
   var tableInputUnit by remember(compKey) {
     mutableStateOf(
       existingComponent?.characteristic?.points?.firstOrNull()?.inputUnit?.ifBlank { null }
-        ?: if (existingComponent?.characteristic?.type == CharType.RESISTANCE_TEMP) "°C" else "kPa"
+        ?: when (existingComponent?.category) {
+          ComponentCategory.COILS -> "V"
+          ComponentCategory.TEMP_SENSOR -> "°C"
+          ComponentCategory.MODULES -> "V"
+          else -> "kPa"
+        }
     )
   }
   var tableOutputUnit by remember(compKey) {
     mutableStateOf(
       existingComponent?.characteristic?.points?.firstOrNull()?.outputUnit?.ifBlank { null }
-        ?: if (existingComponent?.characteristic?.type == CharType.RESISTANCE_TEMP) "Ω" else "V"
+        ?: when (existingComponent?.category) {
+          ComponentCategory.COILS -> "ms"
+          ComponentCategory.TEMP_SENSOR -> "Ω"
+          ComponentCategory.MODULES -> "V"
+          else -> "V"
+        }
     )
   }
 
@@ -363,6 +373,17 @@ fun AddComponentDialog(
         addAll(existingComponent.characteristic.points.map {
           CalPointDraft(inVal = it.inputValue, inUnit = it.inputUnit, outVal = it.outputValue, outUnit = it.outputUnit)
         })
+      } else if (existingComponent?.category == ComponentCategory.COILS) {
+        addAll(
+          listOf(
+            CalPointDraft(inVal = "10.0", inUnit = "V", outVal = "3.40", outUnit = "ms"),
+            CalPointDraft(inVal = "11.0", inUnit = "V", outVal = "2.90", outUnit = "ms"),
+            CalPointDraft(inVal = "12.0", inUnit = "V", outVal = "2.50", outUnit = "ms"),
+            CalPointDraft(inVal = "13.0", inUnit = "V", outVal = "2.20", outUnit = "ms"),
+            CalPointDraft(inVal = "14.0", inUnit = "V", outVal = "2.00", outUnit = "ms"),
+            CalPointDraft(inVal = "15.0", inUnit = "V", outVal = "1.80", outUnit = "ms")
+          )
+        )
       } else {
         addAll(
           listOf(
@@ -380,7 +401,7 @@ fun AddComponentDialog(
     mutableStateOf(existingComponent?.resistanceCharacteristic != null || category == ComponentCategory.TEMP_SENSOR)
   }
   var resCharTitle by remember(compKey) {
-    mutableStateOf(existingComponent?.resistanceCharacteristic?.title ?: "Charakterystyka opornościowa NTC (Temp vs Rezystancja)")
+    mutableStateOf(existingComponent?.resistanceCharacteristic?.title ?: "Charakterystyka opornościowa (Stopnie vs Rezystancja)")
   }
   var resTableInputUnit by remember(compKey) {
     mutableStateOf(
@@ -394,8 +415,10 @@ fun AddComponentDialog(
   }
   val resPointsList = remember(compKey) {
     mutableStateListOf<CalPointDraft>().apply {
-      if (existingComponent?.resistanceCharacteristic != null && existingComponent.resistanceCharacteristic.points.isNotEmpty()) {
-        addAll(existingComponent.resistanceCharacteristic.points.map {
+      val existingPoints = existingComponent?.resistanceCharacteristic?.points
+        ?: if (existingComponent?.category == ComponentCategory.TEMP_SENSOR) existingComponent?.characteristic?.points else null
+      if (existingPoints != null && existingPoints.isNotEmpty()) {
+        addAll(existingPoints.map {
           CalPointDraft(inVal = it.inputValue, inUnit = it.inputUnit, outVal = it.outputValue, outUnit = it.outputUnit)
         })
       } else {
@@ -613,25 +636,25 @@ fun AddComponentDialog(
                   CharacteristicInfo(
                     type = CharType.RESISTANCE_TEMP,
                     title = "Charakterystyka temperatury do oporności",
-                    inputLabel = "Temperatura (℃)",
-                    outputLabel = "Rezystancja ($tableOutputUnit)",
-                    points = calPointsList.map {
+                    inputLabel = "Temperatura (${resTableInputUnit.ifBlank { "°C" }})",
+                    outputLabel = "Rezystancja (${resTableOutputUnit.ifBlank { "Ω" }})",
+                    points = resPointsList.map {
                       CalibrationPoint(
                         inputValue = it.inVal.trim(),
-                        inputUnit = "°C",
+                        inputUnit = resTableInputUnit.trim().ifBlank { "°C" },
                         outputValue = it.outVal.trim(),
-                        outputUnit = tableOutputUnit.trim()
+                        outputUnit = resTableOutputUnit.trim().ifBlank { "Ω" }
                       )
                     },
-                    formulaOrNotes = ""
+                    formulaOrNotes = resCharNotes
                   )
                 }
                 ComponentCategory.MODULES -> {
                   CharacteristicInfo(
-                    type = CharType.VOLTAGE_PRESSURE,
-                    title = "Charakterystyka napięciowa modułu",
+                    type = CharType.MODULE_CUSTOM,
+                    title = charTitle.ifBlank { "Charakterystyka napięciowa modułu" },
                     inputLabel = "Wejście ($tableInputUnit)",
-                    outputLabel = "Napięcie ($tableOutputUnit)",
+                    outputLabel = "Wyjście ($tableOutputUnit)",
                     points = calPointsList.map {
                       CalibrationPoint(
                         inputValue = it.inVal.trim(),
@@ -688,7 +711,7 @@ fun AddComponentDialog(
                 category == ComponentCategory.MAP_SENSOR && isComboTmapSensor -> {
                   CharacteristicInfo(
                     type = CharType.RESISTANCE_TEMP,
-                    title = "Charakterystyka opornościowa IAT (NTC)",
+                    title = "Charakterystyka opornościowa IAT (Stopnie do rezystancji)",
                     inputLabel = "Temperatura ($resTableInputUnit)",
                     outputLabel = "Opór ($resTableOutputUnit)",
                     points = resPointsList.map {
@@ -705,7 +728,7 @@ fun AddComponentDialog(
                 category == ComponentCategory.FUEL_PRESSURE && isComboFuelPressureTempSensor -> {
                   CharacteristicInfo(
                     type = CharType.RESISTANCE_TEMP,
-                    title = "Charakterystyka temperatury paliwa (NTC)",
+                    title = "Charakterystyka temperatury paliwa (Stopnie do rezystancji)",
                     inputLabel = "Temperatura ($resTableInputUnit)",
                     outputLabel = "Opór ($resTableOutputUnit)",
                     points = resPointsList.map {
@@ -722,7 +745,7 @@ fun AddComponentDialog(
                 category == ComponentCategory.OIL_PRESSURE && isComboOilPressureTempSensor -> {
                   CharacteristicInfo(
                     type = CharType.RESISTANCE_TEMP,
-                    title = "Charakterystyka temperatury oleju (NTC)",
+                    title = "Charakterystyka temperatury oleju (Stopnie do rezystancji)",
                     inputLabel = "Temperatura ($resTableInputUnit)",
                     outputLabel = "Opór ($resTableOutputUnit)",
                     points = resPointsList.map {
@@ -736,10 +759,10 @@ fun AddComponentDialog(
                     formulaOrNotes = ""
                   )
                 }
-                category == ComponentCategory.MODULES -> {
+                category == ComponentCategory.MODULES && includeResistanceChar -> {
                   CharacteristicInfo(
-                    type = CharType.RESISTANCE_TEMP,
-                    title = "Charakterystyka opornościowa modułu",
+                    type = CharType.MODULE_CUSTOM,
+                    title = resCharTitle.ifBlank { "Charakterystyka opornościowa modułu" },
                     inputLabel = "Wejście ($resTableInputUnit)",
                     outputLabel = "Oporność ($resTableOutputUnit)",
                     points = resPointsList.map {
@@ -750,7 +773,7 @@ fun AddComponentDialog(
                         outputUnit = resTableOutputUnit.trim()
                       )
                     },
-                    formulaOrNotes = ""
+                    formulaOrNotes = resCharNotes
                   )
                 }
                 category == ComponentCategory.OTHER && showGenericOtherResistance -> {
@@ -773,11 +796,13 @@ fun AddComponentDialog(
                 else -> null
               }
 
-              // 3. Rezystor Pull-Up: TYLKO dla czujników temp lub kombi T-MAP/kombi olej
+              // 3. Rezystor Pull-Up: dla czujników temp lub kombi T-MAP/kombi paliwo/kombi olej/moduły
               val finalPullupRequired = when {
                 category == ComponentCategory.TEMP_SENSOR -> pullupRequired
                 category == ComponentCategory.MAP_SENSOR -> isComboTmapSensor && pullupRequired
+                category == ComponentCategory.FUEL_PRESSURE -> isComboFuelPressureTempSensor && pullupRequired
                 category == ComponentCategory.OIL_PRESSURE -> isComboOilPressureTempSensor && pullupRequired
+                category == ComponentCategory.MODULES -> includeResistanceChar && pullupRequired
                 category == ComponentCategory.OTHER -> showGenericOtherPullup && pullupRequired
                 else -> false
               }
@@ -1090,10 +1115,11 @@ fun AddComponentDialog(
                     pullupRequired = false
                     includeResistanceChar = false
                     isComboTmapSensor = false
+                    isComboFuelPressureTempSensor = false
                     isComboOilPressureTempSensor = false
-                    charTitle = "Tabela Dwell Time (Czas ładowania cewki)"
-                    tableInputUnit = "ms"
-                    tableOutputUnit = "V"
+                    charTitle = "Tabela Dwell Time do napięcia"
+                    tableInputUnit = "V"
+                    tableOutputUnit = "ms"
                     charType = CharType.DWELL_TIME
                     if (pinsList.size <= 3 && pinsList.all { it.name.isBlank() && it.description.isBlank() }) {
                       pinsList.clear()
@@ -1110,12 +1136,12 @@ fun AddComponentDialog(
                       calPointsList.clear()
                       calPointsList.addAll(
                         listOf(
-                          CalPointDraft(inVal = "3.20", inUnit = "ms", outVal = "10.0", outUnit = "V"),
-                          CalPointDraft(inVal = "2.80", inUnit = "ms", outVal = "11.0", outUnit = "V"),
-                          CalPointDraft(inVal = "2.50", inUnit = "ms", outVal = "12.0", outUnit = "V"),
-                          CalPointDraft(inVal = "2.30", inUnit = "ms", outVal = "13.0", outUnit = "V"),
-                          CalPointDraft(inVal = "2.10", inUnit = "ms", outVal = "14.0", outUnit = "V"),
-                          CalPointDraft(inVal = "1.90", inUnit = "ms", outVal = "15.0", outUnit = "V")
+                          CalPointDraft(inVal = "10.0", inUnit = "V", outVal = "3.40", outUnit = "ms"),
+                          CalPointDraft(inVal = "11.0", inUnit = "V", outVal = "2.90", outUnit = "ms"),
+                          CalPointDraft(inVal = "12.0", inUnit = "V", outVal = "2.50", outUnit = "ms"),
+                          CalPointDraft(inVal = "13.0", inUnit = "V", outVal = "2.20", outUnit = "ms"),
+                          CalPointDraft(inVal = "14.0", inUnit = "V", outVal = "2.00", outUnit = "ms"),
+                          CalPointDraft(inVal = "15.0", inUnit = "V", outVal = "1.80", outUnit = "ms")
                         )
                       )
                     }
@@ -1124,10 +1150,12 @@ fun AddComponentDialog(
                     pullupRequired = true
                     includeResistanceChar = true
                     isComboTmapSensor = false
+                    isComboFuelPressureTempSensor = false
                     isComboOilPressureTempSensor = false
-                    resCharTitle = "Charakterystyka opornościowa NTC (Temp vs Rezystancja)"
+                    resCharTitle = "Charakterystyka opornościowa (Stopnie vs Rezystancja)"
                     resTableInputUnit = "°C"
                     resTableOutputUnit = "Ω"
+                    charType = CharType.RESISTANCE_TEMP
                     if (pinsList.size <= 3 && pinsList.all { it.name.isBlank() && it.description.isBlank() }) {
                       pinsList.clear()
                       pinsList.addAll(
@@ -1142,9 +1170,13 @@ fun AddComponentDialog(
                     pullupRequired = false
                     includeResistanceChar = false
                     isComboTmapSensor = false
+                    isComboFuelPressureTempSensor = false
+                    isComboOilPressureTempSensor = false
                     charTitle = "Kalibracja liniowa MAP (kPa vs V)"
                     tableInputUnit = "kPa"
                     tableOutputUnit = "V"
+                    resTableInputUnit = "°C"
+                    resTableOutputUnit = "Ω"
                     charType = CharType.VOLTAGE_PRESSURE
                     if (pinsList.size <= 3 && pinsList.all { it.name.isBlank() && it.description.isBlank() }) {
                       pinsList.clear()
@@ -1160,10 +1192,14 @@ fun AddComponentDialog(
                   ComponentCategory.FUEL_PRESSURE, ComponentCategory.OIL_PRESSURE -> {
                     pullupRequired = false
                     includeResistanceChar = false
+                    isComboTmapSensor = false
+                    isComboFuelPressureTempSensor = false
                     isComboOilPressureTempSensor = false
-                    charTitle = "Kalibracja liniowa ciśnienia (bar vs V)"
-                    tableInputUnit = "bar"
+                    charTitle = if (cat == ComponentCategory.FUEL_PRESSURE) "Kalibracja ciśnienia paliwa (kPa vs V)" else "Kalibracja ciśnienia oleju (kPa vs V)"
+                    tableInputUnit = "kPa"
                     tableOutputUnit = "V"
+                    resTableInputUnit = "°C"
+                    resTableOutputUnit = "Ω"
                     charType = CharType.VOLTAGE_PRESSURE
                     if (pinsList.size <= 3 && pinsList.all { it.name.isBlank() && it.description.isBlank() }) {
                       pinsList.clear()
@@ -1180,6 +1216,7 @@ fun AddComponentDialog(
                     pullupRequired = false
                     includeResistanceChar = false
                     isComboTmapSensor = false
+                    isComboFuelPressureTempSensor = false
                     isComboOilPressureTempSensor = false
                     if (pinsList.size <= 3 && pinsList.all { it.name.isBlank() && it.description.isBlank() }) {
                       pinsList.clear()
@@ -1195,11 +1232,25 @@ fun AddComponentDialog(
                       )
                     }
                   }
-                  ComponentCategory.ECU, ComponentCategory.MODULES -> {
+                  ComponentCategory.ECU -> {
                     pullupRequired = false
                     includeResistanceChar = false
                     isComboTmapSensor = false
+                    isComboFuelPressureTempSensor = false
                     isComboOilPressureTempSensor = false
+                  }
+                  ComponentCategory.MODULES -> {
+                    pullupRequired = false
+                    includeResistanceChar = false
+                    isComboTmapSensor = false
+                    isComboFuelPressureTempSensor = false
+                    isComboOilPressureTempSensor = false
+                    charTitle = "Charakterystyka modułu"
+                    tableInputUnit = "V"
+                    tableOutputUnit = "V"
+                    resTableInputUnit = "°C"
+                    resTableOutputUnit = "Ω"
+                    charType = CharType.MODULE_CUSTOM
                   }
                   ComponentCategory.OTHER, ComponentCategory.ALL -> {
                     // Pozostaw bez zmian
@@ -2246,6 +2297,79 @@ fun AddComponentDialog(
                 singleLine = true
               )
             }
+
+            Spacer(Modifier.height(14.dp))
+
+            Text(
+              text = "Rezystancja / Impedancja cewki wtryskiwacza:",
+              fontWeight = FontWeight.Bold,
+              fontSize = 12.sp,
+              color = TunerCyan
+            )
+            Spacer(Modifier.height(6.dp))
+
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+              val isHighZ = injectorImpedance.contains("Wysoko", ignoreCase = true) || injectorImpedance.contains("High", ignoreCase = true)
+              Card(
+                onClick = { injectorImpedance = "Wysoko-omowy (High-Z 12–16 Ω)" },
+                shape = RoundedCornerShape(8.dp),
+                colors = CardDefaults.cardColors(
+                  containerColor = if (isHighZ) TunerCyan else DarkSurfaceVariant
+                ),
+                border = androidx.compose.foundation.BorderStroke(1.dp, if (isHighZ) TunerCyan else BorderStroke),
+                modifier = Modifier.weight(1f)
+              ) {
+                Box(
+                  modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp, horizontal = 8.dp),
+                  contentAlignment = Alignment.Center
+                ) {
+                  Text(
+                    text = "Wysoko-omowy (High-Z)",
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isHighZ) Color.Black else TextPrimary
+                  )
+                }
+              }
+
+              val isLowZ = injectorImpedance.contains("Nisko", ignoreCase = true) || injectorImpedance.contains("Low", ignoreCase = true)
+              Card(
+                onClick = { injectorImpedance = "Nisko-omowy (Low-Z / Peak & Hold)" },
+                shape = RoundedCornerShape(8.dp),
+                colors = CardDefaults.cardColors(
+                  containerColor = if (isLowZ) TunerAmber else DarkSurfaceVariant
+                ),
+                border = androidx.compose.foundation.BorderStroke(1.dp, if (isLowZ) TunerAmber else BorderStroke),
+                modifier = Modifier.weight(1f)
+              ) {
+                Box(
+                  modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp, horizontal = 8.dp),
+                  contentAlignment = Alignment.Center
+                ) {
+                  Text(
+                    text = "Nisko-omowy (Low-Z)",
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isLowZ) Color.Black else TextPrimary
+                  )
+                }
+              }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            OutlinedTextField(
+              value = injectorImpedance,
+              onValueChange = { injectorImpedance = it },
+              label = { Text("Wartość impedancji (np. Wysoko-omowy 12 Ω)") },
+              placeholder = { Text("np. Wysoko-omowy (High-Z 12 Ω) lub Nisko-omowy (Low-Z 2.4 Ω)") },
+              modifier = Modifier.fillMaxWidth(),
+              colors = customFieldColors(),
+              singleLine = true
+            )
           }
         }
 
@@ -2491,7 +2615,7 @@ fun AddComponentDialog(
 
             Spacer(Modifier.height(12.dp))
 
-            // Nagłówek tabeli Dwell
+            // Nagłówek tabeli Dwell (Napięcie V -> Czas Dwell ms)
             Row(
               modifier = Modifier
                 .fillMaxWidth()
@@ -2500,14 +2624,14 @@ fun AddComponentDialog(
               verticalAlignment = Alignment.CenterVertically
             ) {
               Text(
-                text = "Napięcie [$tableOutputUnit]",
+                text = "Napięcie [$tableInputUnit]",
                 fontWeight = FontWeight.Bold,
                 fontSize = 12.sp,
                 color = TunerCyan,
                 modifier = Modifier.weight(1f)
               )
               Text(
-                text = "Dwell Time [$tableInputUnit]",
+                text = "Dwell Time [$tableOutputUnit]",
                 fontWeight = FontWeight.Bold,
                 fontSize = 12.sp,
                 color = TunerAmber,
@@ -2518,7 +2642,7 @@ fun AddComponentDialog(
 
             Spacer(Modifier.height(6.dp))
 
-            // Wiersze punktów Dwell
+            // Wiersze punktów Dwell: pt.inVal to napięcie, pt.outVal to czas ładowania
             calPointsList.forEachIndexed { cIdx, pt ->
               Row(
                 modifier = Modifier
@@ -2528,11 +2652,11 @@ fun AddComponentDialog(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
               ) {
                 OutlinedTextField(
-                  value = pt.outVal,
+                  value = pt.inVal,
                   onValueChange = { newVal ->
-                    calPointsList[cIdx] = pt.copy(outVal = newVal)
+                    calPointsList[cIdx] = pt.copy(inVal = newVal)
                   },
-                  placeholder = { Text("np. 12.0") },
+                  placeholder = { Text("np. 14.0") },
                   modifier = Modifier.weight(1f),
                   colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = TunerCyan,
@@ -2545,11 +2669,11 @@ fun AddComponentDialog(
                   singleLine = true
                 )
                 OutlinedTextField(
-                  value = pt.inVal,
+                  value = pt.outVal,
                   onValueChange = { newVal ->
-                    calPointsList[cIdx] = pt.copy(inVal = newVal)
+                    calPointsList[cIdx] = pt.copy(outVal = newVal)
                   },
-                  placeholder = { Text("np. 2.50") },
+                  placeholder = { Text("np. 2.10") },
                   modifier = Modifier.weight(1f),
                   colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = TunerAmber,
@@ -3101,7 +3225,7 @@ fun AddComponentDialog(
       // ==========================================
       else if (category == ComponentCategory.FUEL_PRESSURE || category == ComponentCategory.OIL_PRESSURE) {
         val pressType = if (category == ComponentCategory.FUEL_PRESSURE) "paliwa" else "oleju"
-        SectionHeader(title = "${secCounter++}. Kalibracja liniowa ciśnienia $pressType (Bar vs V)", icon = Icons.Default.ShowChart)
+        SectionHeader(title = "${secCounter++}. Kalibracja liniowa ciśnienia $pressType (kPa vs V)", icon = Icons.Default.ShowChart)
         Spacer(Modifier.height(8.dp))
 
         Card(
@@ -3112,14 +3236,14 @@ fun AddComponentDialog(
         ) {
           Column(modifier = Modifier.padding(14.dp)) {
             Text(
-              text = "Kalibracja liniowa ciśnienia $pressType (bar vs V)",
+              text = "Kalibracja liniowa ciśnienia $pressType (kPa vs V)",
               fontWeight = FontWeight.Bold,
               fontSize = 13.sp,
               color = TextPrimary
             )
             Spacer(Modifier.height(4.dp))
             Text(
-              text = "Wpisz punkty charakterystyki ciśnienia w barach i odpowiadające im napięcia w woltach (np. 0.0 bar = 0.5V, 10.0 bar = 4.5V).",
+              text = "Wpisz punkty charakterystyki ciśnienia w kPa (1 bar = 100 kPa) i odpowiadające im napięcia w woltach (np. 0 kPa = 0.5V, 1000 kPa = 4.5V).",
               fontSize = 11.5.sp,
               color = TextSecondary,
               lineHeight = 16.sp
@@ -3136,7 +3260,7 @@ fun AddComponentDialog(
               OutlinedTextField(
                 value = tableInputUnit,
                 onValueChange = { tableInputUnit = it },
-                label = { Text("Jedn. ciśnienia (np. bar)") },
+                label = { Text("Jedn. ciśnienia (np. kPa)") },
                 modifier = Modifier.weight(1f),
                 colors = customFieldColors(),
                 singleLine = true
@@ -3162,7 +3286,7 @@ fun AddComponentDialog(
               verticalAlignment = Alignment.CenterVertically
             ) {
               Text(
-                text = "Ciśnienie [${tableInputUnit.ifBlank { "bar" }}]",
+                text = "Ciśnienie [${tableInputUnit.ifBlank { "kPa" }}]",
                 fontWeight = FontWeight.Bold,
                 fontSize = 12.sp,
                 color = TunerCyan,
@@ -3191,7 +3315,7 @@ fun AddComponentDialog(
                 OutlinedTextField(
                   value = pt.inVal,
                   onValueChange = { newVal -> calPointsList[cIdx] = pt.copy(inVal = newVal) },
-                  placeholder = { Text("np. 0.0") },
+                  placeholder = { Text("np. 100") },
                   modifier = Modifier.weight(1f),
                   colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = TunerCyan,
@@ -3206,7 +3330,7 @@ fun AddComponentDialog(
                 OutlinedTextField(
                   value = pt.outVal,
                   onValueChange = { newVal -> calPointsList[cIdx] = pt.copy(outVal = newVal) },
-                  placeholder = { Text("np. 0.50") },
+                  placeholder = { Text("np. 0.90") },
                   modifier = Modifier.weight(1f),
                   colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = TunerAmber,
@@ -3246,7 +3370,7 @@ fun AddComponentDialog(
               value = charNotes,
               onValueChange = { charNotes = it },
               label = { Text("Wzór kalibracji / zakres czujnika") },
-              placeholder = { Text("np. Zakres 0-10 bar, 0.5V = 0 bar, 4.5V = 10 bar, gwint 1/8 NPT") },
+              placeholder = { Text("np. Zakres 0-1000 kPa (0-10 bar), 0.5V = 0 kPa, 4.5V = 1000 kPa, gwint 1/8 NPT") },
               modifier = Modifier.fillMaxWidth(),
               colors = customFieldColors(),
               minLines = 2
@@ -3254,125 +3378,128 @@ fun AddComponentDialog(
           }
         }
 
-        // Opcja 2-w-1 ciśnienie + temperatura dla oleju
-        if (category == ComponentCategory.OIL_PRESSURE) {
-          Spacer(Modifier.height(16.dp))
-          Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated),
-            border = androidx.compose.foundation.BorderStroke(1.dp, BorderStroke)
-          ) {
-            Column(modifier = Modifier.padding(14.dp)) {
-              Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-              ) {
-                Column(modifier = Modifier.weight(1f)) {
-                  Text(
-                    text = "Czujnik zespolony 2-w-1 (Ciśnienie + Temp. oleju)",
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary
-                  )
-                  Text(
-                    text = "Zaznacz, jeśli czujnik oleju posiada dodatkowy pin z termistorem temperatury oleju (np. Bosch 0 261 230 340).",
-                    fontSize = 11.5.sp,
-                    color = TextSecondary
-                  )
-                }
-                Switch(
-                  checked = isComboOilPressureTempSensor,
-                  onCheckedChange = { checked ->
-                    isComboOilPressureTempSensor = checked
-                    includeResistanceChar = checked
-                    pullupRequired = checked
-                    if (checked && pinsList.none { it.name.contains("Temp", ignoreCase = true) || it.type == PinType.SIGNAL_IN }) {
-                      pinsList.add(
-                        PinDraft(
-                          pinNumber = (pinsList.size + 1).toString(),
-                          name = "Temp. oleju (NTC)",
-                          description = "Sygnał temperatury oleju do wejścia analogowego z pull-up 2490Ω",
-                          wireColor = "Żółty",
-                          type = PinType.SIGNAL_IN,
-                          connectorName = "Wtyczka A"
-                        )
-                      )
-                    }
-                  },
-                  colors = SwitchDefaults.colors(
-                    checkedThumbColor = TunerCyan,
-                    checkedTrackColor = TunerCyan.copy(alpha = 0.4f)
-                  )
+        // Opcja 2-w-1 ciśnienie + temperatura dla paliwa lub oleju
+        val isComboPressSensor = if (category == ComponentCategory.FUEL_PRESSURE) isComboFuelPressureTempSensor else isComboOilPressureTempSensor
+        Spacer(Modifier.height(16.dp))
+        Card(
+          modifier = Modifier.fillMaxWidth(),
+          shape = RoundedCornerShape(12.dp),
+          colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated),
+          border = androidx.compose.foundation.BorderStroke(1.dp, BorderStroke)
+        ) {
+          Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Column(modifier = Modifier.weight(1f)) {
+                Text(
+                  text = "Czujnik zespolony 2-w-1 (Ciśnienie + Temp. $pressType)",
+                  fontWeight = FontWeight.Bold,
+                  color = TextPrimary
+                )
+                Text(
+                  text = "Zaznacz, jeśli czujnik posiada wbudowany dodatkowy termistor temperatury $pressType (kombi-sensor NTC).",
+                  fontSize = 11.5.sp,
+                  color = TextSecondary
                 )
               }
-
-              if (isComboOilPressureTempSensor) {
-                Spacer(Modifier.height(14.dp))
-                Text(
-                  text = "Zintegrowana krzywa temperatury oleju (NTC):",
-                  fontWeight = FontWeight.Bold,
-                  fontSize = 12.sp,
-                  color = TunerCyan
+              Switch(
+                checked = isComboPressSensor,
+                onCheckedChange = { checked ->
+                  if (category == ComponentCategory.FUEL_PRESSURE) {
+                    isComboFuelPressureTempSensor = checked
+                  } else {
+                    isComboOilPressureTempSensor = checked
+                  }
+                  includeResistanceChar = checked
+                  pullupRequired = checked
+                  if (checked && pinsList.none { it.name.contains("Temp", ignoreCase = true) || it.type == PinType.SIGNAL_IN }) {
+                    pinsList.add(
+                      PinDraft(
+                        pinNumber = (pinsList.size + 1).toString(),
+                        name = "Temp. $pressType (NTC)",
+                        description = "Sygnał temperatury $pressType do wejścia analogowego z pull-up 2490Ω",
+                        wireColor = "Żółty",
+                        type = PinType.SIGNAL_IN,
+                        connectorName = "Wtyczka A"
+                      )
+                    )
+                  }
+                },
+                colors = SwitchDefaults.colors(
+                  checkedThumbColor = TunerCyan,
+                  checkedTrackColor = TunerCyan.copy(alpha = 0.4f)
                 )
-                Spacer(Modifier.height(6.dp))
+              )
+            }
 
-                OutlinedTextField(
-                  value = pullupValue,
-                  onValueChange = { pullupValue = it },
-                  label = { Text("Rezystor pull-up dla temperatury oleju (np. 2490 Ω)") },
-                  modifier = Modifier.fillMaxWidth(),
-                  colors = customFieldColors(),
-                  singleLine = true
-                )
+            if (isComboPressSensor) {
+              Spacer(Modifier.height(14.dp))
+              Text(
+                text = "Zintegrowana krzywa temperatury $pressType (NTC):",
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.sp,
+                color = TunerCyan
+              )
+              Spacer(Modifier.height(6.dp))
 
-                Spacer(Modifier.height(8.dp))
+              OutlinedTextField(
+                value = pullupValue,
+                onValueChange = { pullupValue = it },
+                label = { Text("Rezystor pull-up dla temperatury $pressType (np. 2490 Ω do +5V)") },
+                modifier = Modifier.fillMaxWidth(),
+                colors = customFieldColors(),
+                singleLine = true
+              )
 
-                resPointsList.forEachIndexed { rIdx, rpt ->
-                  Row(
-                    modifier = Modifier
-                      .fillMaxWidth()
-                      .padding(vertical = 3.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+              Spacer(Modifier.height(8.dp))
+
+              resPointsList.forEachIndexed { rIdx, rpt ->
+                Row(
+                  modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 3.dp),
+                  verticalAlignment = Alignment.CenterVertically,
+                  horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                  OutlinedTextField(
+                    value = rpt.inVal,
+                    onValueChange = { newVal -> resPointsList[rIdx] = rpt.copy(inVal = newVal) },
+                    placeholder = { Text("np. 80") },
+                    modifier = Modifier.weight(1f),
+                    colors = customFieldColors(),
+                    singleLine = true
+                  )
+                  OutlinedTextField(
+                    value = rpt.outVal,
+                    onValueChange = { newVal -> resPointsList[rIdx] = rpt.copy(outVal = newVal) },
+                    placeholder = { Text("np. 320") },
+                    modifier = Modifier.weight(1.2f),
+                    colors = customFieldColors(),
+                    singleLine = true
+                  )
+                  IconButton(
+                    onClick = { if (resPointsList.size > 1) resPointsList.removeAt(rIdx) },
+                    modifier = Modifier.size(36.dp)
                   ) {
-                    OutlinedTextField(
-                      value = rpt.inVal,
-                      onValueChange = { newVal -> resPointsList[rIdx] = rpt.copy(inVal = newVal) },
-                      placeholder = { Text("np. 80") },
-                      modifier = Modifier.weight(1f),
-                      colors = customFieldColors(),
-                      singleLine = true
-                    )
-                    OutlinedTextField(
-                      value = rpt.outVal,
-                      onValueChange = { newVal -> resPointsList[rIdx] = rpt.copy(outVal = newVal) },
-                      placeholder = { Text("np. 320") },
-                      modifier = Modifier.weight(1.2f),
-                      colors = customFieldColors(),
-                      singleLine = true
-                    )
-                    IconButton(
-                      onClick = { if (resPointsList.size > 1) resPointsList.removeAt(rIdx) },
-                      modifier = Modifier.size(36.dp)
-                    ) {
-                      Icon(Icons.Default.Delete, contentDescription = "Usuń", tint = TuningRed, modifier = Modifier.size(18.dp))
-                    }
+                    Icon(Icons.Default.Delete, contentDescription = "Usuń", tint = TuningRed, modifier = Modifier.size(18.dp))
                   }
                 }
+              }
 
-                Spacer(Modifier.height(6.dp))
+              Spacer(Modifier.height(6.dp))
 
-                OutlinedButton(
-                  onClick = { resPointsList.add(CalPointDraft(inVal = "", inUnit = "°C", outVal = "", outUnit = "Ω")) },
-                  shape = RoundedCornerShape(8.dp),
-                  colors = ButtonDefaults.outlinedButtonColors(contentColor = TunerCyan),
-                  modifier = Modifier.fillMaxWidth()
-                ) {
-                  Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
-                  Spacer(Modifier.width(6.dp))
-                  Text("Dodaj punkt temp. oleju (°C vs Ω)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                }
+              OutlinedButton(
+                onClick = { resPointsList.add(CalPointDraft(inVal = "", inUnit = "°C", outVal = "", outUnit = "Ω")) },
+                shape = RoundedCornerShape(8.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = TunerCyan),
+                modifier = Modifier.fillMaxWidth()
+              ) {
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Dodaj punkt temp. $pressType (°C vs Ω)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
               }
             }
           }
@@ -3415,10 +3542,10 @@ fun AddComponentDialog(
       }
 
       // ==========================================
-      // KATEGORIA: ECU / MODULES (Sterowniki standalone i moduły CAN)
+      // KATEGORIA: ECU (Sterowniki silnika)
       // ==========================================
-      else if (category == ComponentCategory.ECU || category == ComponentCategory.MODULES) {
-        SectionHeader(title = "${secCounter++}. Konfiguracja magistrali i modułu", icon = Icons.Default.Info)
+      else if (category == ComponentCategory.ECU) {
+        SectionHeader(title = "${secCounter++}. Spis wyjść i specyfikacja sterownika ECU", icon = Icons.Default.Info)
         Spacer(Modifier.height(8.dp))
 
         Card(
@@ -3429,18 +3556,357 @@ fun AddComponentDialog(
         ) {
           Column(modifier = Modifier.padding(14.dp)) {
             Text(
-              text = "Zarządzanie połączeniami sterownika standalone",
+              text = "Spis wyjść i gniazd na płytce ECU",
               fontWeight = FontWeight.Bold,
               fontSize = 13.5.sp,
               color = TextPrimary
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(4.dp))
             Text(
-              text = "Dla sterowników silnika i modułów magistrali przypisuj dedykowane gniazda i wtyczki (np. Wtyczka A, Wtyczka B) z poszczególnymi typami pinów (zasilania, masy, wyjścia wtryskiwaczy, wyjścia zapłonu, magistrala CAN-Bus) bezpośrednio w Sekcji 3.",
-              fontSize = 12.sp,
+              text = "Wpisz ile wyjść wtryskiwaczy, ile wyjść cewek, wejść analogowych, AUX oraz magistral CAN znajduje się na płytce sterownika.",
+              fontSize = 11.5.sp,
               color = TextSecondary,
-              lineHeight = 17.sp
+              lineHeight = 16.sp
             )
+
+            Spacer(Modifier.height(12.dp))
+
+            OutlinedTextField(
+              value = ecuOutputsCount,
+              onValueChange = { ecuOutputsCount = it },
+              label = { Text("Spis wyjść na płytce (wtryskiwacze, cewki, AUX)") },
+              placeholder = { Text("np. Wtryskiwacze: 6 (Low-Side), Cewki: 6 (aktywne), AUX: 6, Wejścia analogowe: 8, Wejścia prędkości: 2, CAN-Bus: 1x 2.0B") },
+              modifier = Modifier.fillMaxWidth(),
+              colors = customFieldColors(),
+              minLines = 3
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            OutlinedTextField(
+              value = ecuBoardDimensions,
+              onValueChange = { ecuBoardDimensions = it },
+              label = { Text("Wymiary płytki PCB / obudowy (opcjonalnie)") },
+              placeholder = { Text("np. 140 x 100 x 30 mm") },
+              modifier = Modifier.fillMaxWidth(),
+              colors = customFieldColors(),
+              singleLine = true
+            )
+          }
+        }
+      }
+
+      // ==========================================
+      // KATEGORIA: MODULES (Moduły rozszerzeń / magistrali)
+      // ==========================================
+      else if (category == ComponentCategory.MODULES) {
+        SectionHeader(title = "${secCounter++}. Charakterystyka napięciowa modułu (własne jednostki)", icon = Icons.Default.ShowChart)
+        Spacer(Modifier.height(8.dp))
+
+        Card(
+          modifier = Modifier.fillMaxWidth(),
+          shape = RoundedCornerShape(12.dp),
+          colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated),
+          border = androidx.compose.foundation.BorderStroke(1.dp, BorderStroke)
+        ) {
+          Column(modifier = Modifier.padding(14.dp)) {
+            Text(
+              text = "Charakterystyka napięciowa (dowolne jednostki)",
+              fontWeight = FontWeight.Bold,
+              fontSize = 13.5.sp,
+              color = TextPrimary
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+              text = "Moduły są różne — wpisz własne jednostki wejścia i wyjścia oraz punkty kalibracji.",
+              fontSize = 11.5.sp,
+              color = TextSecondary,
+              lineHeight = 16.sp
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.spacedBy(8.dp),
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              OutlinedTextField(
+                value = tableInputUnit,
+                onValueChange = { tableInputUnit = it },
+                label = { Text("Jednostka wejścia") },
+                placeholder = { Text("np. V, %, RPM") },
+                modifier = Modifier.weight(1f),
+                colors = customFieldColors(),
+                singleLine = true
+              )
+              OutlinedTextField(
+                value = tableOutputUnit,
+                onValueChange = { tableOutputUnit = it },
+                label = { Text("Jednostka wyjścia") },
+                placeholder = { Text("np. V, mA, %") },
+                modifier = Modifier.weight(1f),
+                colors = customFieldColors(),
+                singleLine = true
+              )
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            // Nagłówek tabeli modułu
+            Row(
+              modifier = Modifier
+                .fillMaxWidth()
+                .background(DarkSurfaceVariant, RoundedCornerShape(6.dp))
+                .padding(horizontal = 10.dp, vertical = 7.dp),
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Text(
+                text = "Wejście [${tableInputUnit.ifBlank { "Wejście" }}]",
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.sp,
+                color = TunerCyan,
+                modifier = Modifier.weight(1f)
+              )
+              Text(
+                text = "Wyjście [${tableOutputUnit.ifBlank { "Wyjście" }}]",
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.sp,
+                color = TunerAmber,
+                modifier = Modifier.weight(1f)
+              )
+              Spacer(Modifier.width(36.dp))
+            }
+
+            Spacer(Modifier.height(6.dp))
+
+            calPointsList.forEachIndexed { cIdx, pt ->
+              Row(
+                modifier = Modifier
+                  .fillMaxWidth()
+                  .padding(vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+              ) {
+                OutlinedTextField(
+                  value = pt.inVal,
+                  onValueChange = { newVal -> calPointsList[cIdx] = pt.copy(inVal = newVal) },
+                  placeholder = { Text("Wartość") },
+                  modifier = Modifier.weight(1f),
+                  colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = TunerCyan,
+                    unfocusedTextColor = TunerCyan,
+                    focusedBorderColor = TunerCyan,
+                    cursorColor = TunerCyan,
+                    focusedContainerColor = DarkSurface,
+                    unfocusedContainerColor = DarkSurface
+                  ),
+                  singleLine = true
+                )
+                OutlinedTextField(
+                  value = pt.outVal,
+                  onValueChange = { newVal -> calPointsList[cIdx] = pt.copy(outVal = newVal) },
+                  placeholder = { Text("Sygnał") },
+                  modifier = Modifier.weight(1f),
+                  colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = TunerAmber,
+                    unfocusedTextColor = TunerAmber,
+                    focusedBorderColor = TunerAmber,
+                    cursorColor = TunerAmber,
+                    focusedContainerColor = DarkSurface,
+                    unfocusedContainerColor = DarkSurface
+                  ),
+                  singleLine = true
+                )
+                IconButton(
+                  onClick = { if (calPointsList.size > 1) calPointsList.removeAt(cIdx) },
+                  modifier = Modifier.size(36.dp)
+                ) {
+                  Icon(Icons.Default.Delete, contentDescription = "Usuń punkt", tint = TuningRed, modifier = Modifier.size(18.dp))
+                }
+              }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            OutlinedButton(
+              onClick = { calPointsList.add(CalPointDraft(inVal = "", inUnit = tableInputUnit, outVal = "", outUnit = tableOutputUnit)) },
+              shape = RoundedCornerShape(8.dp),
+              colors = ButtonDefaults.outlinedButtonColors(contentColor = TunerCyan),
+              modifier = Modifier.fillMaxWidth()
+            ) {
+              Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+              Spacer(Modifier.width(6.dp))
+              Text("Dodaj punkt charakterystyki", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            OutlinedTextField(
+              value = charNotes,
+              onValueChange = { charNotes = it },
+              label = { Text("Wskazówki / wzór kalibracji modułu") },
+              placeholder = { Text("np. Wyjście analogowe 0-5V proporcjonalne do odczytu") },
+              modifier = Modifier.fillMaxWidth(),
+              colors = customFieldColors(),
+              minLines = 2
+            )
+          }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        // Opcjonalna charakterystyka opornościowa modułu z własnymi jednostkami
+        Card(
+          modifier = Modifier.fillMaxWidth(),
+          shape = RoundedCornerShape(12.dp),
+          colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated),
+          border = androidx.compose.foundation.BorderStroke(1.dp, BorderStroke)
+        ) {
+          Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Column(modifier = Modifier.weight(1f)) {
+                Text(
+                  text = "Charakterystyka opornościowa modułu",
+                  fontWeight = FontWeight.Bold,
+                  color = TextPrimary
+                )
+                Text(
+                  text = "Zaznacz, jeśli moduł posiada również charakterystykę rezystancyjną (własne jednostki).",
+                  fontSize = 11.5.sp,
+                  color = TextSecondary
+                )
+              }
+              Switch(
+                checked = includeResistanceChar,
+                onCheckedChange = { checked ->
+                  includeResistanceChar = checked
+                },
+                colors = SwitchDefaults.colors(
+                  checkedThumbColor = TunerAmber,
+                  checkedTrackColor = TunerAmber.copy(alpha = 0.4f)
+                )
+              )
+            }
+
+            if (includeResistanceChar) {
+              Spacer(Modifier.height(14.dp))
+
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+              ) {
+                OutlinedTextField(
+                  value = resTableInputUnit,
+                  onValueChange = { resTableInputUnit = it },
+                  label = { Text("Jednostka wejścia") },
+                  placeholder = { Text("np. °C, %, mm") },
+                  modifier = Modifier.weight(1f),
+                  colors = customFieldColors(),
+                  singleLine = true
+                )
+                OutlinedTextField(
+                  value = resTableOutputUnit,
+                  onValueChange = { resTableOutputUnit = it },
+                  label = { Text("Jednostka oporu") },
+                  placeholder = { Text("np. Ω, kΩ") },
+                  modifier = Modifier.weight(1f),
+                  colors = customFieldColors(),
+                  singleLine = true
+                )
+              }
+
+              Spacer(Modifier.height(10.dp))
+
+              Row(
+                modifier = Modifier
+                  .fillMaxWidth()
+                  .background(DarkSurfaceVariant, RoundedCornerShape(6.dp))
+                  .padding(horizontal = 10.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically
+              ) {
+                Text(
+                  text = "Wejście [${resTableInputUnit.ifBlank { "Wejście" }}]",
+                  fontWeight = FontWeight.Bold,
+                  fontSize = 12.sp,
+                  color = TunerCyan,
+                  modifier = Modifier.weight(1f)
+                )
+                Text(
+                  text = "Oporność [${resTableOutputUnit.ifBlank { "Opór" }}]",
+                  fontWeight = FontWeight.Bold,
+                  fontSize = 12.sp,
+                  color = TunerAmber,
+                  modifier = Modifier.weight(1f)
+                )
+                Spacer(Modifier.width(36.dp))
+              }
+
+              Spacer(Modifier.height(6.dp))
+
+              resPointsList.forEachIndexed { rIdx, rpt ->
+                Row(
+                  modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 3.dp),
+                  verticalAlignment = Alignment.CenterVertically,
+                  horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                  OutlinedTextField(
+                    value = rpt.inVal,
+                    onValueChange = { newVal -> resPointsList[rIdx] = rpt.copy(inVal = newVal) },
+                    placeholder = { Text("Wartość") },
+                    modifier = Modifier.weight(1f),
+                    colors = customFieldColors(),
+                    singleLine = true
+                  )
+                  OutlinedTextField(
+                    value = rpt.outVal,
+                    onValueChange = { newVal -> resPointsList[rIdx] = rpt.copy(outVal = newVal) },
+                    placeholder = { Text("Opór") },
+                    modifier = Modifier.weight(1.2f),
+                    colors = customFieldColors(),
+                    singleLine = true
+                  )
+                  IconButton(
+                    onClick = { if (resPointsList.size > 1) resPointsList.removeAt(rIdx) },
+                    modifier = Modifier.size(36.dp)
+                  ) {
+                    Icon(Icons.Default.Delete, contentDescription = "Usuń", tint = TuningRed, modifier = Modifier.size(18.dp))
+                  }
+                }
+              }
+
+              Spacer(Modifier.height(6.dp))
+
+              OutlinedButton(
+                onClick = { resPointsList.add(CalPointDraft(inVal = "", inUnit = resTableInputUnit, outVal = "", outUnit = resTableOutputUnit)) },
+                shape = RoundedCornerShape(8.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = TunerAmber),
+                modifier = Modifier.fillMaxWidth()
+              ) {
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Dodaj punkt oporności", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+              }
+
+              Spacer(Modifier.height(8.dp))
+
+              OutlinedTextField(
+                value = resCharNotes,
+                onValueChange = { resCharNotes = it },
+                label = { Text("Uwagi do charakterystyki opornościowej") },
+                placeholder = { Text("np. Zakres pracy rezystancyjnej") },
+                modifier = Modifier.fillMaxWidth(),
+                colors = customFieldColors(),
+                minLines = 2
+              )
+            }
           }
         }
       }
@@ -3567,9 +4033,11 @@ fun AddComponentDialog(
         ComponentCategory.COILS -> "np. Maksymalny dopuszczalny dwell time przy 14V (2.4 ms). Podłączyć masę iskry bezpośrednio do głowicy silnika!"
         ComponentCategory.TEMP_SENSOR -> "np. Gwint montażowy (M12x1.5), typ NTC, czas odpowiedzi termistora, moment dokręcenia (max 15 Nm)..."
         ComponentCategory.MAP_SENSOR -> "np. Montaż króćcem do dołu aby uniknąć zalewania olejem z dolotu, zakres ciśnienia doładowania..."
-        ComponentCategory.FUEL_PRESSURE, ComponentCategory.OIL_PRESSURE -> "np. Gwint 1/8 NPT lub M10x1, moment dokręcenia, dopuszczalny zakres temperatur oleju..."
+        ComponentCategory.FUEL_PRESSURE -> "np. Gwint 1/8 NPT lub M10x1, moment dokręcenia, odporność na paliwo E85 / metanol..."
+        ComponentCategory.OIL_PRESSURE -> "np. Gwint 1/8 NPT lub M10x1, moment dokręcenia, dopuszczalny zakres temperatur oleju..."
         ComponentCategory.LAMBDA -> "np. Kąt montażu w wydechu min. 10-15° ponad poziom, odległość min. 60-80cm od turbosprężarki, nie stosować paliwa z ołowiem..."
-        ComponentCategory.ECU, ComponentCategory.MODULES -> "np. Wersja firmware, rezystor terminujący CAN 120Ω, zalecany bezpiecznik główny 15A..."
+        ComponentCategory.ECU -> "np. Wersja płyty głównej, zabezpieczenia przepięciowe, bezpiecznik główny 15A, terminacja magistrali CAN 120Ω..."
+        ComponentCategory.MODULES -> "np. Prędkość magistrali CAN (500 kbps), identyfikatory ramek, zasilanie i masa..."
         else -> "Wpisz wszystko co tuner musi wiedzieć montując ten element..."
       }
 

@@ -46,6 +46,7 @@ enum class CharType(val displayName: String) {
   DWELL_TIME("Czas ładowania cewki (Dwell) vs Napięcie"),
   TPS_CALIBRATION("Położenie przepustnicy (TPS) vs Napięcie"),
   ECU_SPEC("Specyfikacja wejść / wyjść ECU"),
+  MODULE_CUSTOM("Własna charakterystyka modułu"),
   OTHER("Charakterystyka ogólna")
 }
 

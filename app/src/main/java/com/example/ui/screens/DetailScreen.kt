@@ -501,7 +501,9 @@ fun DetailScreen(
       // Pull-up Warning for Temperature Sensors (IAT / CLT) and combo sensors
       val canHavePullup = component.category == ComponentCategory.TEMP_SENSOR ||
           (component.category == ComponentCategory.MAP_SENSOR && component.resistanceCharacteristic != null) ||
+          (component.category == ComponentCategory.FUEL_PRESSURE && component.resistanceCharacteristic != null) ||
           (component.category == ComponentCategory.OIL_PRESSURE && component.resistanceCharacteristic != null) ||
+          (component.category == ComponentCategory.MODULES && component.resistanceCharacteristic != null) ||
           (component.category == ComponentCategory.OTHER && component.pullupRequired)
       if (component.pullupRequired && canHavePullup) {
         PullupWarningCard(
@@ -538,16 +540,102 @@ fun DetailScreen(
       }
 
       // 3. WYDAJNOŚĆ WTRYSKIWACZA & KALKULATOR CIŚNIENIA DLA WTRYSKIWACZY
-      if (component.category == ComponentCategory.INJECTORS && component.flowRateCc != null) {
-        InjectorFlowCalculatorCard(
-          nominalFlowRateCc = component.flowRateCc,
-          nominalPressureBar = component.flowPressureBar,
-          modifier = Modifier.testTag("detail_injector_flow_calculator")
-        )
+      if (component.category == ComponentCategory.INJECTORS) {
+        if (component.injectorImpedance.isNotBlank()) {
+          Card(
+            modifier = Modifier.fillMaxWidth().testTag("detail_injector_impedance_card"),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated),
+            border = androidx.compose.foundation.BorderStroke(1.dp, BorderStroke)
+          ) {
+            Row(
+              modifier = Modifier.padding(14.dp),
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Icon(Icons.Default.Info, contentDescription = null, tint = TunerCyan, modifier = Modifier.size(20.dp))
+              Spacer(Modifier.width(10.dp))
+              Column {
+                Text(
+                  text = "Typ / Impedancja wtryskiwacza",
+                  fontSize = 11.5.sp,
+                  color = TextSecondary
+                )
+                Text(
+                  text = component.injectorImpedance,
+                  fontSize = 14.sp,
+                  fontWeight = FontWeight.Bold,
+                  color = TunerCyan
+                )
+              }
+            }
+          }
+          Spacer(Modifier.height(14.dp))
+        }
+
+        if (component.flowRateCc != null) {
+          InjectorFlowCalculatorCard(
+            nominalFlowRateCc = component.flowRateCc,
+            nominalPressureBar = component.flowPressureBar,
+            modifier = Modifier.testTag("detail_injector_flow_calculator")
+          )
+          Spacer(Modifier.height(20.dp))
+        }
+      }
+
+      // SPIS WYJŚĆ I SPECYFIKACJA STEROWNIKA ECU
+      if (component.category == ComponentCategory.ECU && (component.ecuOutputsCount.isNotBlank() || component.ecuBoardDimensions.isNotBlank())) {
+        Card(
+          modifier = Modifier.fillMaxWidth().testTag("detail_ecu_specs_card"),
+          shape = RoundedCornerShape(12.dp),
+          colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated),
+          border = androidx.compose.foundation.BorderStroke(1.dp, BorderStroke)
+        ) {
+          Column(modifier = Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              Icon(Icons.Default.Info, contentDescription = null, tint = TunerCyan, modifier = Modifier.size(20.dp))
+              Spacer(Modifier.width(8.dp))
+              Text(
+                text = "Specyfikacja sterownika ECU",
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                color = TextPrimary
+              )
+            }
+            if (component.ecuOutputsCount.isNotBlank()) {
+              Spacer(Modifier.height(10.dp))
+              Text(
+                text = "Spis wyjść na płytce ECU:",
+                fontSize = 11.5.sp,
+                color = TextSecondary
+              )
+              Text(
+                text = component.ecuOutputsCount,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = TextPrimary,
+                lineHeight = 18.sp
+              )
+            }
+            if (component.ecuBoardDimensions.isNotBlank()) {
+              Spacer(Modifier.height(10.dp))
+              Text(
+                text = "Wymiary płytki / obudowy:",
+                fontSize = 11.5.sp,
+                color = TextSecondary
+              )
+              Text(
+                text = component.ecuBoardDimensions,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = TunerAmber
+              )
+            }
+          }
+        }
         Spacer(Modifier.height(20.dp))
       }
 
-      // 4. CHARAKTERYSTYKA DLA WTRYSKIWACZY (DEAD TIME) LUB GŁÓWNA CHARAKTERYSTYKA (DWELL / KALIBRACJA MAP / CIŚNIENIE)
+      // 4. CHARAKTERYSTYKA DLA WTRYSKIWACZY (DEAD TIME) LUB GŁÓWNA CHARAKTERYSTYKA (DWELL / KALIBRACJA MAP / CIŚNIENIE / MODUŁY)
       if (component.category == ComponentCategory.INJECTORS) {
         if (component.deadTimeTables.isNotEmpty()) {
           DeadTimeTablesView(
@@ -559,6 +647,7 @@ fun DetailScreen(
           component.category == ComponentCategory.MAP_SENSOR ||
           component.category == ComponentCategory.FUEL_PRESSURE ||
           component.category == ComponentCategory.OIL_PRESSURE ||
+          component.category == ComponentCategory.MODULES ||
           component.category == ComponentCategory.OTHER) && component.characteristic.points.isNotEmpty()) {
         CharacteristicsView(
           characteristic = component.characteristic,
@@ -569,7 +658,9 @@ fun DetailScreen(
       // 5. CHARAKTERYSTYKA OPORNOŚCIOWA DLA CZUJNIKÓW TEMPERATURY (REZYSTANCJA NTC VS TEMPERATURA)
       val canHaveResistance = component.category == ComponentCategory.TEMP_SENSOR ||
           (component.category == ComponentCategory.MAP_SENSOR && component.resistanceCharacteristic != null) ||
+          (component.category == ComponentCategory.FUEL_PRESSURE && component.resistanceCharacteristic != null) ||
           (component.category == ComponentCategory.OIL_PRESSURE && component.resistanceCharacteristic != null) ||
+          (component.category == ComponentCategory.MODULES && component.resistanceCharacteristic != null) ||
           (component.category == ComponentCategory.OTHER && component.resistanceCharacteristic != null)
       if (canHaveResistance && component.resistanceCharacteristic != null) {
         Spacer(Modifier.height(20.dp))

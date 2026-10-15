@@ -66,18 +66,22 @@ fun CharacteristicsView(
   val isResistance = characteristic.type == CharType.RESISTANCE_TEMP
 
   val conciseInputHeader = remember(characteristic.inputLabel, isResistance) {
-    if (isResistance) {
+    if (characteristic.inputLabel.isNotBlank()) {
+      characteristic.inputLabel
+    } else if (isResistance) {
       "Temperatura (°C)"
     } else {
-      "Wartość wyjściowa"
+      "Wejście"
     }
   }
 
   val conciseOutputHeader = remember(characteristic.outputLabel, isResistance) {
-    if (isResistance) {
+    if (characteristic.outputLabel.isNotBlank()) {
+      characteristic.outputLabel
+    } else if (isResistance) {
       "Rezystancja (Ω)"
     } else {
-      "Wartość wejściowa"
+      "Wyjście"
     }
   }
 
