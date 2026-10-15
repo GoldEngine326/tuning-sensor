@@ -12,6 +12,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.security.MessageDigest
+import kotlinx.coroutines.launch
 
 object ImageUtils {
   private const val TAG = "ImageUtils"
@@ -43,7 +44,6 @@ object ImageUtils {
     maxDimension: Int = 800,
     quality: Int = 75
   ): String? {
-    cleanLegacyCache(context)
     return try {
       val contentResolver = context.contentResolver
 
@@ -133,7 +133,36 @@ object ImageUtils {
     }
   }
 
+  private val ioScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO + kotlinx.coroutines.SupervisorJob())
   private val modelCache = java.util.concurrent.ConcurrentHashMap<String, Any>(128)
+
+  fun getFastCacheKey(source: String): String {
+    return if (source.startsWith("data:image")) {
+      "b64_${source.length}_${source.take(64).hashCode().toUInt()}_${source.takeLast(64).hashCode().toUInt()}"
+    } else {
+      source
+    }
+  }
+
+  fun preCacheBase64Image(context: Context, source: String): String {
+    if (source.isBlank() || !source.startsWith("data:image")) return source
+    val cacheKey = getFastCacheKey(source)
+    val cacheFile = File(context.cacheDir, "$FILE_PREFIX$cacheKey.jpg")
+    if (cacheFile.exists() && cacheFile.length() > 0) {
+      modelCache[cacheKey] = cacheFile
+      return cacheFile.absolutePath
+    }
+    // Asynchronously decode and save to file in background
+    ioScope.launch {
+      try {
+        val base64Part = source.substringAfter("base64,")
+        val bytes = Base64.decode(base64Part, Base64.DEFAULT)
+        FileOutputStream(cacheFile).use { it.write(bytes) }
+        modelCache[cacheKey] = cacheFile
+      } catch (_: Exception) {}
+    }
+    return cacheFile.absolutePath
+  }
 
   /**
    * Returns a model usable by Coil (ImageRequest.Builder.data):
@@ -144,29 +173,25 @@ object ImageUtils {
   fun getImageModel(context: Context, source: String?): Any? {
     if (source.isNullOrBlank()) return null
     val trimmed = source.trim()
+    val cacheKey = getFastCacheKey(trimmed)
 
-    modelCache[trimmed]?.let { return it }
+    modelCache[cacheKey]?.let { return it }
 
     val model: Any? = if (trimmed.startsWith("data:image")) {
       try {
-        val base64Part = trimmed.substringAfter("base64,")
-        // Use full SHA-256 of the base64 content to guarantee unique caching per image
-        val hash = sha256String(base64Part)
-        val cacheFile = File(context.cacheDir, "$FILE_PREFIX$hash.jpg")
-
+        val cacheFile = File(context.cacheDir, "$FILE_PREFIX$cacheKey.jpg")
         if (cacheFile.exists() && cacheFile.length() > 0) {
           cacheFile
         } else {
-          // Decode Base64 data
+          val base64Part = trimmed.substringAfter("base64,")
           val bytes = Base64.decode(base64Part, Base64.DEFAULT)
-
-          // Cache for next time
-          try {
-            FileOutputStream(cacheFile).use { it.write(bytes) }
-            cacheFile
-          } catch (_: Exception) {
-            bytes
+          // Write cache asynchronously without blocking UI thread
+          ioScope.launch {
+            try {
+              FileOutputStream(cacheFile).use { it.write(bytes) }
+            } catch (_: Exception) {}
           }
+          bytes
         }
       } catch (e: Exception) {
         Log.e(TAG, "Error decoding base64 image", e)
@@ -180,7 +205,7 @@ object ImageUtils {
     }
 
     if (model != null) {
-      modelCache[trimmed] = model
+      modelCache[cacheKey] = model
     }
     return model
   }

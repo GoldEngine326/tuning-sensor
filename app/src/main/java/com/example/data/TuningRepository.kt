@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONObject
+import com.example.util.ImageUtils
 import java.util.UUID
 
 class TuningRepository(
@@ -639,9 +640,13 @@ class TuningRepository(
     val createdAtTimestamp = data["createdAt"] as? Timestamp
     val lastEditedAtTimestamp = data["lastEditedAt"] as? Timestamp
 
-    val docImageUrl = data["imageUrl"] as? String ?: ""
+    val docImageUrlRaw = data["imageUrl"] as? String ?: ""
     val imagesRaw = data["images"] as? List<*> ?: emptyList<Any>()
-    val imagesList = imagesRaw.filterIsInstance<String>()
+    val imagesListRaw = imagesRaw.filterIsInstance<String>()
+
+    val docImageUrl = ImageUtils.preCacheBase64Image(context, docImageUrlRaw)
+    val imagesList = imagesListRaw.map { ImageUtils.preCacheBase64Image(context, it) }
+
     val finalImages = if (imagesList.isNotEmpty()) {
       imagesList
     } else if (docImageUrl.isNotBlank()) {
