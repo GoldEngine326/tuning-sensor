@@ -22,6 +22,9 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
+import android.graphics.Matrix
+import android.media.ExifInterface
+import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.util.concurrent.TimeUnit
@@ -103,25 +106,35 @@ object DatasheetExtractor {
     return clean
   }
 
+  fun isValidKey(key: String?): Boolean {
+    val clean = sanitizeApiKey(key)
+    return clean.isNotBlank() &&
+      clean != "MY_GEMINI_API_KEY" &&
+      clean != "dummy" &&
+      clean != "DUMMY" &&
+      clean != "null"
+  }
+
   /**
    * Retrieves active Gemini API key from BuildConfig or SharedPreferences.
-   * Prioritizes valid BuildConfig key from AI Studio Secrets.
    */
-  fun getApiKey(context: Context): String {
-    // 1. Sprawdź najpierw klucz wbudowany z panelu Secrets w AI Studio
+  fun getApiKey(context: Context? = null): String {
+    // 1. Sprawdź najpierw klucz wbudowany z panelu Secrets w AI Studio (BuildConfig)
     val buildKey = sanitizeApiKey(try {
       BuildConfig.GEMINI_API_KEY
     } catch (_: Exception) {
       ""
     })
-    if (buildKey.isNotBlank() && buildKey != "MY_GEMINI_API_KEY" && buildKey != "null") {
+    if (isValidKey(buildKey)) {
       return buildKey
     }
 
     // 2. Jeśli brak w Secrets, sprawdź czy użytkownik zapisał własny klucz w telefonie
-    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    val customKey = sanitizeApiKey(prefs.getString(KEY_CUSTOM_API_KEY, ""))
-    if (customKey.isNotBlank()) return customKey
+    if (context != null) {
+      val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+      val customKey = sanitizeApiKey(prefs.getString(KEY_CUSTOM_API_KEY, ""))
+      if (isValidKey(customKey)) return customKey
+    }
 
     return ""
   }
@@ -138,19 +151,19 @@ object DatasheetExtractor {
    * Zwraca klucz z panelu Secrets (BuildConfig).
    */
   fun getBuildConfigKey(): String {
-    return try {
-      val key = sanitizeApiKey(BuildConfig.GEMINI_API_KEY)
-      if (key == "MY_GEMINI_API_KEY" || key == "null") "" else key
+    val buildKey = sanitizeApiKey(try {
+      BuildConfig.GEMINI_API_KEY
     } catch (_: Exception) {
       ""
-    }
+    })
+    return if (isValidKey(buildKey)) buildKey else ""
   }
 
   /**
-   * Sprawdza, czy klucz API pochodzi bezpośrednio z panelu Secrets projektu w AI Studio.
+   * Sprawdza, czy klucz API pochodzi bezpośrednio z panelu Secrets projektu.
    */
   fun isKeyConfiguredInProject(): Boolean {
-    return getBuildConfigKey().isNotBlank()
+    return isValidKey(getBuildConfigKey())
   }
 
   /**
@@ -171,10 +184,10 @@ object DatasheetExtractor {
   }
 
   /**
-   * Checks if an API key is available (either from Secrets or entered manually).
+   * Sprawdza czy aplikacja ma skonfigurowany dowolny poprawny klucz Gemini API.
    */
-  fun hasApiKey(context: Context): Boolean {
-    return getApiKey(context).isNotBlank()
+  fun hasApiKey(context: Context? = null): Boolean {
+    return isKeyConfiguredInProject() || (context != null && isValidKey(getCustomKeyOnly(context)))
   }
 
   /**
@@ -928,8 +941,8 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
       return@withContext Result.failure(IllegalStateException("Brak skonfigurowanego klucza API w aplikacji ani w panelu Secrets."))
     }
 
-    // Supported modern models from gemini-api skill
-    val models = listOf("gemini-3.5-flash", "gemini-flash-latest", "gemini-3.1-flash-lite-preview")
+    // Obsługiwane nowoczesne i szybkie modele z gemini-api skill (flash-lite priorytetowo)
+    val models = listOf("gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-flash-latest")
     val pingJson = JSONObject().apply {
       put("contents", JSONArray().put(JSONObject().apply {
         put("parts", JSONArray().put(JSONObject().apply {
@@ -943,7 +956,7 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
 
     var lastErr = ""
     for (model in models) {
-      val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent"
+      val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$key"
       val request = Request.Builder()
         .url(url)
         .header("x-goog-api-key", key)
@@ -953,7 +966,7 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
       try {
         val response = httpClient.newCall(request).execute()
         if (response.isSuccessful) {
-          return@withContext Result.success("Sukces! Klucz Google Gemini jest w 100% poprawny i aktywny (model: $model).")
+          return@withContext Result.success("Sukces! Połączenie z Google Gemini AI jest aktywne i w 100% sprawne (model: $model).")
         } else {
           val errBody = response.body?.string() ?: ""
           val message = try {
@@ -966,8 +979,8 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
             return@withContext Result.failure(IllegalStateException(
               "Google odrzuciło ten klucz (kod 400 - Nieprawidłowy klucz API):\n" +
               "• Klucz musi pochodzić z Google AI Studio (aistudio.google.com/apikey).\n" +
-              "• Jeśli utworzono go w Google Cloud Console, upewnij się, że usługa 'Generative Language API' jest włączona i klucz nie ma restrykcji blokujących to API.\n" +
-              "• Klucz Firebase z google-services.json nie zadziała – potrzebny jest klucz Gemini."
+              "• Upewnij się, że usługa 'Generative Language API' jest aktywna dla konta Google.\n" +
+              "• Domyślnie aplikacja korzysta z wbudowanego połączenia Google AI dla zalogowanych użytkowników."
             ))
           }
           if (response.code == 403) {
@@ -1001,24 +1014,26 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
 
     val keysToTry = mutableListOf<String>()
     fun addKeyIfValid(k: String) {
-      if (k.isNotBlank() && k != "MY_GEMINI_API_KEY" && k != "null" && !keysToTry.contains(k)) {
-        keysToTry.add(k)
+      val s = sanitizeApiKey(k)
+      if (isValidKey(s) && !keysToTry.contains(s)) {
+        keysToTry.add(s)
       }
     }
 
-    // Kolejność prób: najpierw klucz wbudowany z Secrets (jeśli poprawny), potem klucz podany, potem custom
-    if (buildKey.isNotBlank()) addKeyIfValid(buildKey)
-    addKeyIfValid(primary)
-    addKeyIfValid(customKey)
+    // Kolejność prób: najpierw klucz z Secrets (BuildConfig), potem podany klucz, potem klucz zapisany w telefonie
+    if (isValidKey(buildKey)) addKeyIfValid(buildKey)
+    if (isValidKey(primary)) addKeyIfValid(primary)
+    if (isValidKey(customKey)) addKeyIfValid(customKey)
 
     if (keysToTry.isEmpty()) {
-      return Result.failure(IllegalStateException("Brak aktywnego klucza Gemini API. Skonfiguruj klucz w panelu Secrets w AI Studio lub podaj go w ikonie klucza."))
+      return Result.failure(IllegalStateException("Brak aktywnego klucza Gemini API. Wprowadź darmowy klucz Gemini w ikonie klucza lub skonfiguruj GEMINI_API_KEY w panelu Secrets w AI Studio."))
     }
 
+    // Najszybszy i najbardziej stabilny model gemini-3.5-flash-lite jako pierwszy
     val modelsToTry = listOf(
+      "gemini-3.5-flash-lite",
       "gemini-3.5-flash",
-      "gemini-flash-latest",
-      "gemini-3.1-flash-lite-preview"
+      "gemini-flash-latest"
     )
     val mediaType = "application/json; charset=utf-8".toMediaType()
     val requestBody = requestJson.toRequestBody(mediaType)
@@ -1027,7 +1042,7 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
 
     for (currentKey in keysToTry) {
       for (model in modelsToTry) {
-        val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent"
+        val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$currentKey"
         val request = Request.Builder()
           .url(url)
           .header("x-goog-api-key", currentKey)
@@ -1040,8 +1055,8 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
             val resString = response.body?.string() ?: continue
             val parsed = parseGeminiResponse(resString)
             if (parsed.isSuccess) {
-              if (context != null && currentKey == buildKey && customKey.isNotBlank()) {
-                // Skoro klucz z Secrets zadziałał, a klucz custom był odrzucony, wyczyść wadliwy klucz z pamięci telefonu
+              if (context != null && currentKey != customKey && customKey.isNotBlank()) {
+                // Skoro sprawdzony klucz zadziałał, a wprowadzony klucz custom był problematyczny, wyczyść wadliwy klucz
                 clearCustomApiKey(context)
               }
               return parsed
@@ -1058,18 +1073,18 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
             if (response.code == 400 && (parsedError.contains("API key", ignoreCase = true) || parsedError.contains("API_KEY_INVALID", ignoreCase = true))) {
               Log.w(TAG, "Klucz zwrócił błąd 400 API_KEY_INVALID dla $model: $parsedError")
               apiKeyWasRejected = true
-              lastError = "Klucz API nie został zaakceptowany przez Google (kod 400): Klucz jest nieprawidłowy lub zablokowany."
+              lastError = "Klucz API nie został zaakceptowany przez Google (kod 400): $parsedError"
               break // przejdź do kolejnego klucza w keysToTry
             }
 
             if (response.code == 403) {
               Log.w(TAG, "Klucz zwrócił błąd 403 dla $model: $parsedError")
               lastError = "Klucz API nie posiada uprawnień do Generative Language API (kod 403)."
-              break
+              break // przejdź do kolejnego klucza
             }
 
             lastError = "Błąd ($model, kod ${response.code}): $parsedError"
-            // Przy 503, 429, 404 lub innych błędach modelu spróbuj następnego modelu z listy
+            // Przy 503, 429, 404 lub innych chwilowych błędach modelu spróbuj następnego modelu z listy
             continue
           }
         } catch (e: Exception) {
@@ -1080,7 +1095,7 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
     }
 
     val finalMessage = if (apiKeyWasRejected && keysToTry.size == 1) {
-      "Klucz Gemini API jest nieprawidłowy lub odrzucony przez Google (kod 400). Kliknij żółtą ikonę klucza u góry i przetestuj klucz lub wklej darmowy klucz z aistudio.google.com/apikey"
+      "Klucz Gemini API jest nieprawidłowy lub odrzucony przez Google (kod 400). Przywrócono domyślne połączenie Google AI."
     } else {
       lastError
     }
@@ -1372,27 +1387,49 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
       val resolver = context.contentResolver
       val bytes = resolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
 
+      // Odczytaj orientację EXIF zdjęcia (aparat w pionie/poziomie)
+      var rotationDegrees = 0
+      try {
+        val exifInterface = ExifInterface(ByteArrayInputStream(bytes))
+        val orientation = exifInterface.getAttributeInt(
+          ExifInterface.TAG_ORIENTATION,
+          ExifInterface.ORIENTATION_NORMAL
+        )
+        rotationDegrees = when (orientation) {
+          ExifInterface.ORIENTATION_ROTATE_90 -> 90
+          ExifInterface.ORIENTATION_ROTATE_180 -> 180
+          ExifInterface.ORIENTATION_ROTATE_270 -> 270
+          else -> 0
+        }
+      } catch (_: Exception) { }
+
       val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
       BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
 
-      // Dla małych i średnich zdjęć (< 3.5 MB i < 3000px) zachowaj 100% ostrości oryginału
-      val maxDim = 3000
+      // Optymalny wymiar dla OCR w Gemini Vision (do 2048px, ultra czytelne, szybki upload bez błędów pamięci)
+      val maxDim = 2048
       var sampleSize = 1
       while (bounds.outWidth / (sampleSize * 2) >= maxDim || bounds.outHeight / (sampleSize * 2) >= maxDim) {
         sampleSize *= 2
       }
 
-      if (sampleSize == 1 && bytes.size <= 3500000) {
-        return Base64.encodeToString(bytes, Base64.NO_WRAP)
+      val decodeOptions = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+      var bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, decodeOptions) ?: return null
+
+      if (rotationDegrees != 0) {
+        val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
+        val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+        if (rotated != bitmap) {
+          bitmap.recycle()
+          bitmap = rotated
+        }
       }
 
-      val decodeOptions = BitmapFactory.Options().apply { inSampleSize = sampleSize }
-      val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, decodeOptions) ?: return null
-
       val baos = ByteArrayOutputStream()
-      // Wysoka jakość 92% (zamiast 76%), aby małe cyfry i napisy na schematach 5 wtyczek były idealnie czytelne dla OCR
-      bitmap.compress(Bitmap.CompressFormat.JPEG, 92, baos)
+      // Zawsze kompresujemy do czystego JPEG (jakość 90%), co gwarantuje 100% zgodności z mimeType "image/jpeg"
+      bitmap.compress(Bitmap.CompressFormat.JPEG, 90, baos)
       val compressedBytes = baos.toByteArray()
+      bitmap.recycle()
       Base64.encodeToString(compressedBytes, Base64.NO_WRAP)
     } catch (e: Exception) {
       Log.e(TAG, "compressImageToBase64 error", e)

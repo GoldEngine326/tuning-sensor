@@ -25,6 +25,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.material.icons.filled.OpenInNew
@@ -92,9 +93,9 @@ fun GitHubUpdateDialog(
         )
         Spacer(Modifier.height(4.dp))
         Text(
-          text = releaseInfo.tagName,
+          text = "Twoja wersja: v${com.example.BuildConfig.VERSION_NAME} → Nowa: ${releaseInfo.tagName}",
           fontFamily = FontFamily.Monospace,
-          fontSize = 12.sp,
+          fontSize = 11.5.sp,
           color = TunerAmber,
           fontWeight = FontWeight.Bold
         )

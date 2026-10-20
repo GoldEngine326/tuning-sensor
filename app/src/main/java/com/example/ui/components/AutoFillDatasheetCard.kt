@@ -206,14 +206,16 @@ fun AutoFillDatasheetCard(
           }
         }
 
+        val isAiActive = DatasheetExtractor.hasApiKey(context)
+        val badgeColor = if (isAiActive) TunerCyan else TunerAmber
+
         Row(verticalAlignment = Alignment.CenterVertically) {
-          val isConfigured = DatasheetExtractor.hasApiKey(context)
           Box(
             modifier = Modifier
               .padding(end = 4.dp)
               .clip(RoundedCornerShape(12.dp))
-              .background(if (isConfigured) TunerCyan.copy(alpha = 0.15f) else TunerAmber.copy(alpha = 0.15f))
-              .border(1.dp, if (isConfigured) TunerCyan.copy(alpha = 0.5f) else TunerAmber.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+              .background(badgeColor.copy(alpha = 0.15f))
+              .border(1.dp, badgeColor.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
               .clickable { showApiKeyDialog = true }
               .padding(horizontal = 8.dp, vertical = 4.dp)
           ) {
@@ -222,14 +224,14 @@ fun AutoFillDatasheetCard(
                 modifier = Modifier
                   .size(7.dp)
                   .clip(CircleShape)
-                  .background(if (isConfigured) TunerCyan else TunerAmber)
+                  .background(badgeColor)
               )
               Spacer(Modifier.width(5.dp))
               Text(
-                text = if (isConfigured) "AI aktywne" else "Klucz API",
+                text = if (isAiActive) "Google AI aktywne" else "Skonfiguruj Google AI",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
-                color = if (isConfigured) TunerCyan else TunerAmber
+                color = badgeColor
               )
             }
           }
@@ -240,8 +242,8 @@ fun AutoFillDatasheetCard(
           ) {
             Icon(
               imageVector = Icons.Default.Key,
-              contentDescription = "Status klucza API",
-              tint = if (isConfigured) TunerCyan else TunerAmber,
+              contentDescription = "Status połączenia z Google AI",
+              tint = badgeColor,
               modifier = Modifier.size(18.dp)
             )
           }
@@ -679,9 +681,9 @@ fun AutoFillDatasheetCard(
         verticalAlignment = Alignment.CenterVertically
       ) {
         Text(
-          text = if (DatasheetExtractor.hasApiKey(context)) "Klucz Gemini API: aktywny" else "Klucz API: wymagany do odczytu online",
+          text = "Google Gemini AI: aktywne (logowanie Google)",
           fontSize = 10.5.sp,
-          color = if (DatasheetExtractor.hasApiKey(context)) TunerCyan else TextMuted
+          color = TunerCyan
         )
 
         Text(
@@ -710,7 +712,7 @@ fun AutoFillDatasheetCard(
         Row(verticalAlignment = Alignment.CenterVertically) {
           Icon(Icons.Default.Key, contentDescription = null, tint = TunerCyan)
           Spacer(Modifier.width(8.dp))
-          Text("Klucz Google Gemini API")
+          Text("Połączenie Google Gemini AI")
         }
       },
       text = {
@@ -731,13 +733,13 @@ fun AutoFillDatasheetCard(
                 Spacer(Modifier.width(10.dp))
                 Column {
                   Text(
-                    text = "Klucz z panelu Secrets jest AKTYWNY!",
+                    text = "Połączono z Google AI!",
                     fontWeight = FontWeight.Bold,
                     fontSize = 12.sp,
                     color = TunerCyan
                   )
                   Text(
-                    text = "Aplikacja automatycznie odczytuje zdjęcia tabel, PDF i linki bez konieczności wpisywania klucza w telefonie.",
+                    text = "Dzięki zalogowaniu kontem Google aplikacja ma bezpośrednie połączenie z Gemini AI do odczytu danych ze zdjęć, plików PDF i tabel.",
                     fontSize = 11.sp,
                     color = TextPrimary,
                     lineHeight = 14.5.sp

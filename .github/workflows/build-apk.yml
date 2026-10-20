@@ -38,7 +38,7 @@ jobs:
           cp debug.keystore ~/.android/debug.keystore
 
           touch .env
-          echo "GEMINI_API_KEY=dummy" > .env
+          echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" > .env
           cp .env app/.env || true
 
       - name: Extract Tag Version and Inject into BuildConfig
@@ -49,7 +49,11 @@ jobs:
           CLEAN_VER="${CLEAN_VER#V}"
           echo "Building version: $CLEAN_VER"
           echo "version=$CLEAN_VER" >> $GITHUB_OUTPUT
-          sed -i "s/versionName = \"1.0\"/versionName = \"$CLEAN_VER\"/g" app/build.gradle.kts
+          sed -i -E "s/versionName = \".*\"/versionName = \"$CLEAN_VER\"/g" app/build.gradle.kts
+          CODE=$(echo "$CLEAN_VER" | tr -cd '0-9')
+          if [ ! -z "$CODE" ]; then
+            sed -i -E "s/versionCode = [0-9]+/versionCode = $CODE/g" app/build.gradle.kts
+          fi
 
       - name: Build Debug APK
         run: |

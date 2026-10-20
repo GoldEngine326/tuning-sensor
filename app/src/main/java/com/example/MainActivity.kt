@@ -335,22 +335,6 @@ fun TuningAppContent(
         onOpenNickDialog = {
           showNickDialog = true
         },
-        onCheckUpdate = {
-          coroutineScope.launch {
-            android.widget.Toast.makeText(context, "Sprawdzanie aktualizacji na GitHubie...", android.widget.Toast.LENGTH_SHORT).show()
-            val result = GitHubUpdateManager.checkForGitHubUpdate()
-            result.onSuccess { (hasUpdate, releaseInfo) ->
-              if (hasUpdate && releaseInfo != null) {
-                gitHubRelease = releaseInfo
-                showGitHubUpdateDialog = true
-              } else {
-                android.widget.Toast.makeText(context, "Masz zainstalowaną najnowszą wersję!", android.widget.Toast.LENGTH_SHORT).show()
-              }
-            }.onFailure { err ->
-              android.widget.Toast.makeText(context, "Błąd sprawdzania aktualizacji: ${err.message}", android.widget.Toast.LENGTH_SHORT).show()
-            }
-          }
-        },
         onSignOut = onSignOut,
         modifier = Modifier.fillMaxSize()
       )

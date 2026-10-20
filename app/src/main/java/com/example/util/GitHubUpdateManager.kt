@@ -36,6 +36,13 @@ object GitHubUpdateManager {
   const val CURRENT_VERSION_TAG = "v${BuildConfig.VERSION_NAME}"
   const val CURRENT_VERSION_CODE = BuildConfig.VERSION_CODE
 
+  fun cleanVersionString(tag: String): String {
+    val trimmed = tag.trim()
+    val regex = Regex("""\b(\d+(\.\d+)*)\b""")
+    val match = regex.find(trimmed)
+    return match?.value ?: trimmed.removePrefix("v").removePrefix("V").trim()
+  }
+
   /**
    * Sprawdza najnowszą wersję w GitHub Releases:
    * https://api.github.com/repos/GoldEngine326/tuning-sensor/releases/latest
@@ -107,17 +114,20 @@ object GitHubUpdateManager {
   }
 
   /**
-   * Porównuje wersję z tagu GitHuba (np. "v1.1", "1.2") z wersją aplikacji
+   * Porównuje wersję z tagu GitHuba (np. "v4.1", "4.2") z wersją aplikacji.
+   * Zwraca true TYLKO wtedy, gdy wersja na GitHubie jest ściśle większa od zainstalowanej.
    */
-  private fun isNewerVersion(remoteTag: String): Boolean {
-    val cleanRemote = remoteTag.removePrefix("v").removePrefix("V").trim()
-    val cleanCurrent = BuildConfig.VERSION_NAME.removePrefix("v").removePrefix("V").trim()
+  fun isNewerVersion(remoteTag: String): Boolean {
+    val cleanRemote = cleanVersionString(remoteTag)
+    val cleanCurrent = cleanVersionString(BuildConfig.VERSION_NAME)
 
-    if (cleanRemote.isBlank()) return false
+    if (cleanRemote.isBlank() || cleanCurrent.isBlank()) return false
     if (cleanRemote == cleanCurrent) return false
 
     val remoteParts = cleanRemote.split(".").mapNotNull { it.toIntOrNull() }
     val currentParts = cleanCurrent.split(".").mapNotNull { it.toIntOrNull() }
+
+    if (remoteParts.isEmpty() || currentParts.isEmpty()) return false
 
     for (i in 0 until maxOf(remoteParts.size, currentParts.size)) {
       val r = remoteParts.getOrElse(i) { 0 }
