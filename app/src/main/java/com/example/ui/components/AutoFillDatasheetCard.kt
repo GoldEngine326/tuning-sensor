@@ -29,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Key
@@ -65,6 +66,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -755,14 +757,16 @@ fun AutoFillDatasheetCard(
 
           Spacer(Modifier.height(10.dp))
 
+          val clipboardManager = LocalClipboardManager.current
+
           // Przycisk bezpośredniego otwarcia strony z kluczem
           Button(
             onClick = {
               try {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/app/apikey"))
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/apikey"))
                 context.startActivity(intent)
               } catch (_: Exception) {
-                Toast.makeText(context, "Otwórz w przeglądarce: aistudio.google.com/app/apikey", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "Otwórz w przeglądarce: aistudio.google.com/apikey", Toast.LENGTH_LONG).show()
               }
             },
             colors = ButtonDefaults.buttonColors(containerColor = TunerCyan.copy(alpha = 0.2f), contentColor = TunerCyan),
@@ -794,19 +798,19 @@ fun AutoFillDatasheetCard(
               verticalAlignment = Alignment.CenterVertically
             ) {
               Text(
-                text = "Zapisany klucz w telefonie: ...${customSaved.takeLast(6)}",
+                text = "Klucz w telefonie: ...${customSaved.takeLast(6)}",
                 fontSize = 11.sp,
                 color = TunerAmber
               )
               TextButton(
                 onClick = {
                   DatasheetExtractor.clearCustomApiKey(context)
-                  customApiKeyInput = ""
+                  customApiKeyInput = DatasheetExtractor.getBuildConfigKey()
                   testKeyResult = null
-                  Toast.makeText(context, "Wyczyszczono klucz z telefonu. Aktywny jest klucz z projektu!", Toast.LENGTH_SHORT).show()
+                  Toast.makeText(context, "Wyczyszczono klucz z telefonu. Przywrócono klucz z projektu!", Toast.LENGTH_SHORT).show()
                 }
               ) {
-                Text("Przywróć klucz Secrets", fontSize = 11.sp, color = TunerCyan)
+                Text("Przywróć klucz z projektu", fontSize = 11.sp, color = TunerCyan)
               }
             }
             Spacer(Modifier.height(6.dp))
@@ -814,14 +818,31 @@ fun AutoFillDatasheetCard(
 
           OutlinedTextField(
             value = customApiKeyInput,
-            onValueChange = { 
-              customApiKeyInput = it
+            onValueChange = { input ->
+              customApiKeyInput = DatasheetExtractor.sanitizeApiKey(input)
               testKeyResult = null
             },
             label = { Text("Klucz API (AIzaSy...)") },
-            placeholder = { Text(if (isFromProject) "Aktywny klucz z Secrets (wklej by zmienić)" else "Wklej tutaj klucz") },
+            placeholder = { Text(if (isFromProject) "Wklej klucz lub użyj klucza z projektu" else "Wklej tutaj klucz") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
+            trailingIcon = {
+              IconButton(
+                onClick = {
+                  val clipText = clipboardManager.getText()?.text
+                  if (!clipText.isNullOrBlank()) {
+                    val cleaned = DatasheetExtractor.sanitizeApiKey(clipText)
+                    customApiKeyInput = cleaned
+                    testKeyResult = null
+                    Toast.makeText(context, "Wklejono i oczyszczono klucz ze schowka!", Toast.LENGTH_SHORT).show()
+                  } else {
+                    Toast.makeText(context, "Schowek jest pusty", Toast.LENGTH_SHORT).show()
+                  }
+                }
+              ) {
+                Icon(Icons.Default.ContentPaste, contentDescription = "Wklej ze schowka", tint = TunerCyan, modifier = Modifier.size(18.dp))
+              }
+            },
             colors = OutlinedTextFieldDefaults.colors(
               focusedTextColor = TextPrimary,
               unfocusedTextColor = TextPrimary,
@@ -840,7 +861,8 @@ fun AutoFillDatasheetCard(
               isTestingKey = true
               testKeyResult = null
               scope.launch {
-                val res = DatasheetExtractor.testApiKey(context, customApiKeyInput.ifBlank { null })
+                val candidate = customApiKeyInput.ifBlank { null }
+                val res = DatasheetExtractor.testApiKey(context, candidate)
                 isTestingKey = false
                 res.onSuccess { msg ->
                   testKeyIsSuccess = true
@@ -880,21 +902,21 @@ fun AutoFillDatasheetCard(
               border = BorderStroke(1.dp, if (testKeyIsSuccess) TunerCyan.copy(alpha = 0.6f) else TuningRed.copy(alpha = 0.6f))
             ) {
               Row(
-                modifier = Modifier.padding(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.padding(10.dp),
+                verticalAlignment = Alignment.Top
               ) {
                 Icon(
                   imageVector = if (testKeyIsSuccess) Icons.Default.Check else Icons.Default.Warning,
                   contentDescription = null,
                   tint = if (testKeyIsSuccess) TunerCyan else TuningRed,
-                  modifier = Modifier.size(16.dp)
+                  modifier = Modifier.size(18.dp).padding(top = 1.dp)
                 )
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(8.dp))
                 Text(
                   text = testKeyResult ?: "",
-                  fontSize = 11.sp,
+                  fontSize = 11.5.sp,
                   color = if (testKeyIsSuccess) TextPrimary else TuningRed,
-                  lineHeight = 14.sp
+                  lineHeight = 15.sp
                 )
               }
             }
@@ -905,12 +927,13 @@ fun AutoFillDatasheetCard(
         Row {
           Button(
             onClick = {
-              if (customApiKeyInput.isBlank()) {
+              val sanitized = DatasheetExtractor.sanitizeApiKey(customApiKeyInput)
+              if (sanitized.isBlank()) {
                 DatasheetExtractor.clearCustomApiKey(context)
                 Toast.makeText(context, "Używany jest domyślny klucz z panelu Secrets!", Toast.LENGTH_SHORT).show()
               } else {
-                DatasheetExtractor.saveApiKey(context, customApiKeyInput)
-                Toast.makeText(context, "Zapisano klucz API!", Toast.LENGTH_SHORT).show()
+                DatasheetExtractor.saveApiKey(context, sanitized)
+                Toast.makeText(context, "Zapisano i oczyszczono klucz API!", Toast.LENGTH_SHORT).show()
               }
               showApiKeyDialog = false
             },

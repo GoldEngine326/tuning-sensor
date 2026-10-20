@@ -183,15 +183,17 @@ object ImageUtils {
         if (cacheFile.exists() && cacheFile.length() > 0) {
           cacheFile
         } else {
-          val base64Part = trimmed.substringAfter("base64,")
-          val bytes = Base64.decode(base64Part, Base64.DEFAULT)
-          // Write cache asynchronously without blocking UI thread
+          // Offload Base64 decode and file persistence to IO thread to prevent main thread jank
           ioScope.launch {
             try {
+              val base64Part = trimmed.substringAfter("base64,")
+              val bytes = Base64.decode(base64Part, Base64.DEFAULT)
               FileOutputStream(cacheFile).use { it.write(bytes) }
+              modelCache[cacheKey] = cacheFile
             } catch (_: Exception) {}
           }
-          bytes
+          // Return the trimmed data URI directly - Coil's DataUriFetcher decodes it on Dispatchers.IO
+          trimmed
         }
       } catch (e: Exception) {
         Log.e(TAG, "Error decoding base64 image", e)

@@ -76,23 +76,51 @@ object DatasheetExtractor {
     .build()
 
   /**
+   * Dokładnie oczyszcza wklejony lub przekazany klucz API z białych znaków,
+   * znaków cudzysłowu, prefiksów takich jak GEMINI_API_KEY= lub Bearer,
+   * oraz niewidocznych spacji zero-width.
+   */
+  fun sanitizeApiKey(raw: String?): String {
+    if (raw.isNullOrBlank()) return ""
+    var clean = raw.trim()
+    clean = clean.removePrefix("GEMINI_API_KEY=").removePrefix("GEMINI_API_KEY :").removePrefix("GEMINI_API_KEY:")
+    clean = clean.removePrefix("API_KEY=").removePrefix("API_KEY :").removePrefix("API_KEY:")
+    clean = clean.removePrefix("Bearer ")
+    clean = clean.replace("\"", "").replace("'", "")
+    // Usuń wszelkie białe znaki w tym spacje twarde (\u00A0), BOM (\uFEFF) i zero-width (\u200B)
+    clean = clean.filter { !it.isWhitespace() && it != '\u00A0' && it != '\u200B' && it != '\uFEFF' }
+
+    // Jeśli użytkownik wkleił ciąg zawierający klucz Google AIzaSy... (39 znaków), wyodrębnij go precyzyjnie
+    val matchAiza = Regex("""(AIzaSy[A-Za-z0-9_-]{33})""").find(clean)
+    if (matchAiza != null) {
+      return matchAiza.groupValues[1]
+    }
+    // Jeśli to klucz w nowym formacie AI Studio (AQ....)
+    val matchAq = Regex("""(AQ\.[A-Za-z0-9_-]{20,80})""").find(clean)
+    if (matchAq != null) {
+      return matchAq.groupValues[1]
+    }
+    return clean
+  }
+
+  /**
    * Retrieves active Gemini API key from BuildConfig or SharedPreferences.
    * Prioritizes valid BuildConfig key from AI Studio Secrets.
    */
   fun getApiKey(context: Context): String {
     // 1. Sprawdź najpierw klucz wbudowany z panelu Secrets w AI Studio
-    val buildKey = try {
-      BuildConfig.GEMINI_API_KEY.trim()
+    val buildKey = sanitizeApiKey(try {
+      BuildConfig.GEMINI_API_KEY
     } catch (_: Exception) {
       ""
-    }
+    })
     if (buildKey.isNotBlank() && buildKey != "MY_GEMINI_API_KEY" && buildKey != "null") {
       return buildKey
     }
 
     // 2. Jeśli brak w Secrets, sprawdź czy użytkownik zapisał własny klucz w telefonie
     val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    val customKey = prefs.getString(KEY_CUSTOM_API_KEY, "")?.trim() ?: ""
+    val customKey = sanitizeApiKey(prefs.getString(KEY_CUSTOM_API_KEY, ""))
     if (customKey.isNotBlank()) return customKey
 
     return ""
@@ -103,7 +131,7 @@ object DatasheetExtractor {
    */
   fun getCustomKeyOnly(context: Context): String {
     val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    return prefs.getString(KEY_CUSTOM_API_KEY, "")?.trim() ?: ""
+    return sanitizeApiKey(prefs.getString(KEY_CUSTOM_API_KEY, ""))
   }
 
   /**
@@ -111,7 +139,7 @@ object DatasheetExtractor {
    */
   fun getBuildConfigKey(): String {
     return try {
-      val key = BuildConfig.GEMINI_API_KEY.trim()
+      val key = sanitizeApiKey(BuildConfig.GEMINI_API_KEY)
       if (key == "MY_GEMINI_API_KEY" || key == "null") "" else key
     } catch (_: Exception) {
       ""
@@ -130,7 +158,8 @@ object DatasheetExtractor {
    */
   fun saveApiKey(context: Context, key: String) {
     val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    prefs.edit().putString(KEY_CUSTOM_API_KEY, key.trim()).apply()
+    val sanitized = sanitizeApiKey(key)
+    prefs.edit().putString(KEY_CUSTOM_API_KEY, sanitized).apply()
   }
 
   /**
@@ -888,15 +917,19 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
   /**
    * Szybki test połączenia z Google Gemini API (używany w oknie dialogowym).
    */
+  /**
+   * Szybki test połączenia z Google Gemini API (używany w oknie dialogowym).
+   */
   suspend fun testApiKey(context: Context, candidateKey: String? = null): Result<String> = withContext(Dispatchers.IO) {
-    val rawCandidate = candidateKey?.replace("\"", "")?.replace("'", "")?.trim()
-    val key = if (!rawCandidate.isNullOrBlank()) rawCandidate else getApiKey(context).replace("\"", "").replace("'", "").trim()
+    val sanitizedCandidate = sanitizeApiKey(candidateKey)
+    val key = if (sanitizedCandidate.isNotBlank()) sanitizedCandidate else sanitizeApiKey(getApiKey(context))
 
     if (key.isBlank() || key == "MY_GEMINI_API_KEY" || key == "null") {
       return@withContext Result.failure(IllegalStateException("Brak skonfigurowanego klucza API w aplikacji ani w panelu Secrets."))
     }
 
-    val models = listOf("gemini-3.5-flash", "gemini-flash-latest", "gemini-3.6-flash")
+    // Supported modern models from gemini-api skill
+    val models = listOf("gemini-3.5-flash", "gemini-flash-latest", "gemini-3.1-flash-lite-preview")
     val pingJson = JSONObject().apply {
       put("contents", JSONArray().put(JSONObject().apply {
         put("parts", JSONArray().put(JSONObject().apply {
@@ -910,12 +943,17 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
 
     var lastErr = ""
     for (model in models) {
-      val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$key"
-      val request = Request.Builder().url(url).post(body).build()
+      val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent"
+      val request = Request.Builder()
+        .url(url)
+        .header("x-goog-api-key", key)
+        .post(body)
+        .build()
+
       try {
         val response = httpClient.newCall(request).execute()
         if (response.isSuccessful) {
-          return@withContext Result.success("Sukces! Połączenie z Google Gemini działa idealnie (model: $model).")
+          return@withContext Result.success("Sukces! Klucz Google Gemini jest w 100% poprawny i aktywny (model: $model).")
         } else {
           val errBody = response.body?.string() ?: ""
           val message = try {
@@ -924,8 +962,19 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
             errBody
           }
 
-          if (response.code == 400 && (message.contains("API key", ignoreCase = true) || message.contains("API_KEY_INVALID", ignoreCase = true))) {
-            return@withContext Result.failure(IllegalStateException("Google odrzuciło ten klucz (kod 400): Klucz nie istnieje lub jest nieprawidłowy. Upewnij się, że skopiowano go dokładnie bez spacji."))
+          if (response.code == 400 && (message.contains("API key", ignoreCase = true) || message.contains("API_KEY_INVALID", ignoreCase = true) || message.contains("INVALID_ARGUMENT", ignoreCase = true))) {
+            return@withContext Result.failure(IllegalStateException(
+              "Google odrzuciło ten klucz (kod 400 - Nieprawidłowy klucz API):\n" +
+              "• Klucz musi pochodzić z Google AI Studio (aistudio.google.com/apikey).\n" +
+              "• Jeśli utworzono go w Google Cloud Console, upewnij się, że usługa 'Generative Language API' jest włączona i klucz nie ma restrykcji blokujących to API.\n" +
+              "• Klucz Firebase z google-services.json nie zadziała – potrzebny jest klucz Gemini."
+            ))
+          }
+          if (response.code == 403) {
+            return@withContext Result.failure(IllegalStateException(
+              "Google odmówiło dostępu (kod 403: Permission Denied):\n" +
+              "Ten klucz nie ma uprawnień do Generative Language API lub projekt ma nałożone ograniczenia."
+            ))
           }
           if (response.code == 503) {
             lastErr = "Serwery Gemini są chwilowo mocno obciążone (kod 503)."
@@ -946,19 +995,20 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
     primaryApiKey: String,
     requestJson: String
   ): Result<ExtractedComponentData> {
-    val buildKey = getBuildConfigKey().replace("\"", "").replace("'", "").trim()
-    val customKey = (if (context != null) getCustomKeyOnly(context) else "").replace("\"", "").replace("'", "").trim()
+    val buildKey = sanitizeApiKey(getBuildConfigKey())
+    val customKey = sanitizeApiKey(if (context != null) getCustomKeyOnly(context) else "")
+    val primary = sanitizeApiKey(primaryApiKey)
 
     val keysToTry = mutableListOf<String>()
     fun addKeyIfValid(k: String) {
-      val clean = k.replace("\"", "").replace("'", "").trim()
-      if (clean.isNotBlank() && clean != "MY_GEMINI_API_KEY" && clean != "null" && !keysToTry.contains(clean)) {
-        keysToTry.add(clean)
+      if (k.isNotBlank() && k != "MY_GEMINI_API_KEY" && k != "null" && !keysToTry.contains(k)) {
+        keysToTry.add(k)
       }
     }
 
-    addKeyIfValid(primaryApiKey)
-    addKeyIfValid(buildKey)
+    // Kolejność prób: najpierw klucz wbudowany z Secrets (jeśli poprawny), potem klucz podany, potem custom
+    if (buildKey.isNotBlank()) addKeyIfValid(buildKey)
+    addKeyIfValid(primary)
     addKeyIfValid(customKey)
 
     if (keysToTry.isEmpty()) {
@@ -968,9 +1018,6 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
     val modelsToTry = listOf(
       "gemini-3.5-flash",
       "gemini-flash-latest",
-      "gemini-3.6-flash",
-      "gemini-3.7-flash",
-      "gemini-3.8-flash",
       "gemini-3.1-flash-lite-preview"
     )
     val mediaType = "application/json; charset=utf-8".toMediaType()
@@ -980,9 +1027,10 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
 
     for (currentKey in keysToTry) {
       for (model in modelsToTry) {
-        val urlWithKey = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$currentKey"
+        val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent"
         val request = Request.Builder()
-          .url(urlWithKey)
+          .url(url)
+          .header("x-goog-api-key", currentKey)
           .post(requestBody)
           .build()
 
@@ -992,7 +1040,8 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
             val resString = response.body?.string() ?: continue
             val parsed = parseGeminiResponse(resString)
             if (parsed.isSuccess) {
-              if (context != null && currentKey == buildKey && currentKey != primaryApiKey) {
+              if (context != null && currentKey == buildKey && customKey.isNotBlank()) {
+                // Skoro klucz z Secrets zadziałał, a klucz custom był odrzucony, wyczyść wadliwy klucz z pamięci telefonu
                 clearCustomApiKey(context)
               }
               return parsed
@@ -1009,12 +1058,17 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
             if (response.code == 400 && (parsedError.contains("API key", ignoreCase = true) || parsedError.contains("API_KEY_INVALID", ignoreCase = true))) {
               Log.w(TAG, "Klucz zwrócił błąd 400 API_KEY_INVALID dla $model: $parsedError")
               apiKeyWasRejected = true
-              lastError = "Klucz API nie został zaakceptowany przez Google (kod 400): $parsedError"
+              lastError = "Klucz API nie został zaakceptowany przez Google (kod 400): Klucz jest nieprawidłowy lub zablokowany."
               break // przejdź do kolejnego klucza w keysToTry
             }
 
-            lastError = "Błąd ($model, kod ${response.code}): $parsedError"
+            if (response.code == 403) {
+              Log.w(TAG, "Klucz zwrócił błąd 403 dla $model: $parsedError")
+              lastError = "Klucz API nie posiada uprawnień do Generative Language API (kod 403)."
+              break
+            }
 
+            lastError = "Błąd ($model, kod ${response.code}): $parsedError"
             // Przy 503, 429, 404 lub innych błędach modelu spróbuj następnego modelu z listy
             continue
           }
@@ -1026,7 +1080,7 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
     }
 
     val finalMessage = if (apiKeyWasRejected && keysToTry.size == 1) {
-      "Klucz Gemini API jest nieprawidłowy lub odrzucony przez Google (kod 400). Kliknij żółtą ikonę klucza u góry i przetestuj klucz lub wklej nowy darmowy klucz."
+      "Klucz Gemini API jest nieprawidłowy lub odrzucony przez Google (kod 400). Kliknij żółtą ikonę klucza u góry i przetestuj klucz lub wklej darmowy klucz z aistudio.google.com/apikey"
     } else {
       lastError
     }
