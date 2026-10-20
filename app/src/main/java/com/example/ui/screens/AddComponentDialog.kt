@@ -964,8 +964,19 @@ fun AddComponentDialog(
           data.flowRateCc?.let { flowRateCcInput = if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() }
           data.flowPressureBar?.let { flowPressureBarInput = if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() }
           if (data.deadTimeTables.isNotEmpty()) {
+            category = ComponentCategory.INJECTORS
             deadTimeTablesDraft.clear()
-            deadTimeTablesDraft.addAll(data.deadTimeTables)
+            data.deadTimeTables.forEach { tbl ->
+              val pts = androidx.compose.runtime.mutableStateListOf<DeadTimePointDraft>()
+              pts.addAll(tbl.points.map { DeadTimePointDraft(voltage = it.voltage, timeMs = it.timeMs) })
+              deadTimeTablesDraft.add(
+                DeadTimeTableDraft(
+                  tableName = tbl.tableName,
+                  notes = tbl.notes,
+                  points = pts
+                )
+              )
+            }
           }
           if (data.calibrationPoints.isNotEmpty()) {
             calPointsList.clear()
@@ -993,10 +1004,16 @@ fun AddComponentDialog(
           data.boltDiagonal2Mm?.let { boltDiagonal2Input = if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() }
           if (data.pins.isNotEmpty()) {
             pinsList.clear()
-            pinsList.addAll(data.pins)
+            val hasConfigured = data.pins.any { it.name.isNotBlank() || it.description.isNotBlank() }
+            val cleanPins = if (hasConfigured) {
+              data.pins.filter { it.name.isNotBlank() || it.description.isNotBlank() || it.wireColor.isNotBlank() }
+            } else {
+              data.pins
+            }
+            pinsList.addAll(cleanPins)
 
             // Automatycznie zaktualizuj listę wtyczek (np. gdy sterownik ECU posiada 5 wtyczek)
-            val extractedConnectors = data.pins.map { it.connectorName.ifBlank { "Wtyczka A" } }.distinct()
+            val extractedConnectors = cleanPins.map { it.connectorName.ifBlank { "Wtyczka A" } }.distinct()
             if (extractedConnectors.isNotEmpty()) {
               connectorsList.clear()
               connectorsList.addAll(extractedConnectors)

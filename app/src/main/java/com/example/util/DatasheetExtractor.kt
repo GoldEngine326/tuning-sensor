@@ -776,15 +776,30 @@ ZASADY DLA POZOSTAŁYCH CZUJNIKÓW:
 6. Dla przepustnic (DBW): odczytaj średnice (wewnętrzna i zewnętrzna), rozstawy śrub montażowych oraz schemat pinoutu DBW.
 
 STRUKTURA ZWRACANEGO JSON:
-Możesz zwrócić piny płasko w "pins" (z polem "connectorName") LUB pogrupowane w tablicy "connectors":
+Zwróć wszystkie piny WYŁĄCZNIE w tablicy "pins" (każdy pin z polem "connectorName"). NIGDY nie twórz pustych pinów ani nie duplikuj pinów.
 {
-  "name": "Pełna nazwa podzespołu w języku polskim (np. UAEFI Standalone ECU lub Wtryskiwacze Bosch EV14 630cc)",
+  "name": "Pełna nazwa podzespołu w języku polskim (np. Wtryskiwacze Bosch EV14 630cc lub EMU Black Standalone)",
   "partNumber": "Numer katalogowy / OE (lub nazwa modelu)",
-  "category": "Jeden z: ECU, MODULES, INJECTORS, MAP_SENSOR, TEMP_SENSOR, THROTTLE, COILS, FUEL_PRESSURE, OIL_PRESSURE, LAMBDA, OTHER",
+  "category": "Jeden z: INJECTORS, THROTTLE, COILS, MAP_SENSOR, TEMP_SENSOR, FUEL_PRESSURE, OIL_PRESSURE, LAMBDA, ECU, MODULES, OTHER",
   "shortDescription": "Zwięzły i dokładny opis podzespołu w języku polskim",
   "flowRateCc": null,
   "flowPressureBar": null,
-  "deadTimeTables": [],
+  "deadTimeTables": [
+    {
+      "tableName": "3.0 bar (Diff)",
+      "notes": "",
+      "points": [
+        { "voltage": "8.0", "timeMs": "2.10" },
+        { "voltage": "10.0", "timeMs": "1.52" },
+        { "voltage": "11.0", "timeMs": "1.30" },
+        { "voltage": "12.0", "timeMs": "1.14" },
+        { "voltage": "13.0", "timeMs": "1.01" },
+        { "voltage": "14.0", "timeMs": "0.91" },
+        { "voltage": "15.0", "timeMs": "0.82" },
+        { "voltage": "16.0", "timeMs": "0.75" }
+      ]
+    }
+  ],
   "calibrationPoints": [],
   "calInputUnit": "kPa",
   "calOutputUnit": "V",
@@ -810,66 +825,12 @@ Możesz zwrócić piny płasko w "pins" (z polem "connectorName") LUB pogrupowan
       "description": "Masa zasilająca sterownik",
       "wireColor": "Czarny",
       "type": "GROUND"
-    },
-    {
-      "pinNumber": "1",
-      "connectorName": "Wtyczka B",
-      "name": "Wtryskiwacz 1 (Inj 1)",
-      "description": "Wyjście wtryskiwacza cylindra 1 Low-Side",
-      "wireColor": "Niebieski",
-      "type": "INJECTOR"
-    },
-    {
-      "pinNumber": "1",
-      "connectorName": "Wtyczka C",
-      "name": "+5V VREF",
-      "description": "Zasilanie referencyjne czujników TPS, MAP",
-      "wireColor": "Czerwony",
-      "type": "VREF"
-    },
-    {
-      "pinNumber": "1",
-      "connectorName": "Wtyczka D",
-      "name": "DBW Motor +",
-      "description": "Sterowanie silnikiem przepustnicy",
-      "wireColor": "Żółty",
-      "type": "MOTOR"
-    },
-    {
-      "pinNumber": "1",
-      "connectorName": "Wtyczka E",
-      "name": "LSU 4.9 IP",
-      "description": "Prąd pompy sondy szerokopasmowej",
-      "wireColor": "Czerwony",
-      "type": "SIGNAL_IN"
-    }
-  ],
-  "connectors": [
-    {
-      "name": "Wtyczka A",
-      "pins": [ ... ]
-    },
-    {
-      "name": "Wtyczka B",
-      "pins": [ ... ]
-    },
-    {
-      "name": "Wtyczka C",
-      "pins": [ ... ]
-    },
-    {
-      "name": "Wtyczka D",
-      "pins": [ ... ]
-    },
-    {
-      "name": "Wtyczka E",
-      "pins": [ ... ]
     }
   ],
   "importantNotes": "Ważne uwagi instalacyjne, zalecenia tunera w języku polskim",
   "summaryBullets": [
-    "Rozpoznano urządzenie i wszystkie złącza",
-    "Odczytano pinout ze wszystkich wtyczek"
+    "Rozpoznano urządzenie i parametry",
+    "Odczytano tabele"
   ]
 }
 
@@ -1134,11 +1095,24 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
   }
 
   private fun parseExtractedData(json: JSONObject): ExtractedComponentData {
-    val categoryStr = json.optString("category", "")
-    val category = try {
-      ComponentCategory.valueOf(categoryStr.uppercase())
-    } catch (_: Exception) {
-      null
+    val rawCategory = json.optString("category", "").trim().uppercase()
+    val category = when {
+      rawCategory.contains("INJECTOR") || rawCategory.contains("WTRYSK") -> ComponentCategory.INJECTORS
+      rawCategory.contains("THROTTLE") || rawCategory.contains("PRZEPUST") || rawCategory.contains("DBW") -> ComponentCategory.THROTTLE
+      rawCategory.contains("COIL") || rawCategory.contains("CEWK") || rawCategory.contains("IGNITION") -> ComponentCategory.COILS
+      rawCategory.contains("TEMP") || rawCategory.contains("CLT") || rawCategory.contains("IAT") -> ComponentCategory.TEMP_SENSOR
+      rawCategory.contains("MAP") || rawCategory.contains("BOOST") -> ComponentCategory.MAP_SENSOR
+      rawCategory.contains("FUEL_PRESS") || rawCategory.contains("PALIW") -> ComponentCategory.FUEL_PRESSURE
+      rawCategory.contains("OIL_PRESS") || rawCategory.contains("OLEJ") -> ComponentCategory.OIL_PRESSURE
+      rawCategory.contains("LAMBDA") || rawCategory.contains("AFR") || rawCategory.contains("WIDEBAND") -> ComponentCategory.LAMBDA
+      rawCategory.contains("ECU") || rawCategory.contains("STANDALONE") || rawCategory.contains("STEROWNIK") -> ComponentCategory.ECU
+      rawCategory.contains("MODUL") || rawCategory.contains("MODULE") -> ComponentCategory.MODULES
+      rawCategory.contains("OTHER") || rawCategory.contains("INNE") -> ComponentCategory.OTHER
+      else -> try {
+        ComponentCategory.valueOf(rawCategory)
+      } catch (_: Exception) {
+        null
+      }
     }
 
     // Dead Time Tables - obsługa wielu ciśnień (np. 2.5b, 3.0b, ..., 6.0b)
@@ -1243,7 +1217,7 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
     }
 
     // Pins and Multi-Connectors parsing
-    val pinsList = mutableListOf<PinDraft>()
+    val rawPins = mutableListOf<PinDraft>()
 
     fun parsePinObject(pObj: JSONObject, defaultConnector: String): PinDraft {
       val rawNum = pObj.optString("pinNumber", "").replace("Pin", "", ignoreCase = true).trim()
@@ -1280,7 +1254,7 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
       }
 
       if (cleanPinNum.isBlank()) {
-        cleanPinNum = "${pinsList.size + 1}"
+        cleanPinNum = "${rawPins.size + 1}"
       }
 
       return PinDraft(
@@ -1298,11 +1272,11 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
     if (directPinsArr != null) {
       for (i in 0 until directPinsArr.length()) {
         val pObj = directPinsArr.optJSONObject(i) ?: continue
-        pinsList.add(parsePinObject(pObj, "Wtyczka A"))
+        rawPins.add(parsePinObject(pObj, "Wtyczka A"))
       }
     }
 
-    // 2. Connectors array: "connectors": [ { "name": "Wtyczka A", "pins": [...] }, ... ]
+    // 2. Connectors array
     val connArr = json.optJSONArray("connectors") ?: json.optJSONArray("wtyczki") ?: json.optJSONArray("plugs")
     if (connArr != null) {
       for (c in 0 until connArr.length()) {
@@ -1312,13 +1286,13 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
         if (cPins != null) {
           for (p in 0 until cPins.length()) {
             val pObj = cPins.optJSONObject(p) ?: continue
-            pinsList.add(parsePinObject(pObj, cName))
+            rawPins.add(parsePinObject(pObj, cName))
           }
         }
       }
     }
 
-    // 3. Connectors object: "connectors": { "Wtyczka A": [...], "Wtyczka B": [...] }
+    // 3. Connectors object
     val connObj = json.optJSONObject("connectors") ?: json.optJSONObject("wtyczki")
     if (connObj != null) {
       val keys = connObj.keys()
@@ -1328,11 +1302,35 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
         if (arr != null) {
           for (p in 0 until arr.length()) {
             val pObj = arr.optJSONObject(p) ?: continue
-            pinsList.add(parsePinObject(pObj, key))
+            rawPins.add(parsePinObject(pObj, key))
           }
         }
       }
     }
+
+    // Oczyszczanie i eliminacja dubli pinów:
+    // Jeśli są piny ze skonfigurowaną nazwą/opisem, odrzucamy całkowicie puste piny
+    val hasConfiguredPins = rawPins.any { it.name.isNotBlank() || it.description.isNotBlank() }
+    val candidatePins = if (hasConfiguredPins) {
+      rawPins.filter { it.name.isNotBlank() || it.description.isNotBlank() || it.wireColor.isNotBlank() }
+    } else {
+      rawPins
+    }
+
+    // Unikanie duplikatów dla tego samego numeru w tej samej wtyczce
+    val dedupedMap = linkedMapOf<String, PinDraft>()
+    for (p in candidatePins) {
+      val key = "${p.connectorName.trim().lowercase()}__${p.pinNumber.trim()}"
+      val existing = dedupedMap[key]
+      if (existing == null) {
+        dedupedMap[key] = p
+      } else {
+        if (existing.name.isBlank() && p.name.isNotBlank()) {
+          dedupedMap[key] = p
+        }
+      }
+    }
+    val pinsList = dedupedMap.values.toList()
 
     // Aktualizacja podsumowania o odczytane wtyczki
     val distinctConnectors = pinsList.map { it.connectorName.ifBlank { "Wtyczka A" } }.distinct()
@@ -1340,26 +1338,33 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
       bulletsList.add("✔ Odczytano pinout ze wszystkich ${distinctConnectors.size} wtyczek (${distinctConnectors.joinToString()}) — łącznie ${pinsList.size} pinów")
     }
 
-    val isThrottle = category == ComponentCategory.THROTTLE
-    val isInjectors = category == ComponentCategory.INJECTORS
-    val isCoils = category == ComponentCategory.COILS
-    val isTemp = category == ComponentCategory.TEMP_SENSOR
-    val isMap = category == ComponentCategory.MAP_SENSOR
-    val isPress = category == ComponentCategory.FUEL_PRESSURE || category == ComponentCategory.OIL_PRESSURE
-    val isLambda = category == ComponentCategory.LAMBDA
-    val isEcuOrMod = category == ComponentCategory.ECU || category == ComponentCategory.MODULES || distinctConnectors.size >= 2
+    val resolvedCategory = when {
+      category != null -> category
+      deadTimeTablesList.isNotEmpty() -> ComponentCategory.INJECTORS
+      distinctConnectors.size >= 2 -> ComponentCategory.ECU
+      calPointsList.isNotEmpty() -> ComponentCategory.MAP_SENSOR
+      resPointsList.isNotEmpty() -> ComponentCategory.TEMP_SENSOR
+      else -> null
+    }
 
-    val resolvedCategory = if (category == null && distinctConnectors.size >= 2) ComponentCategory.ECU else category
+    val isThrottle = resolvedCategory == ComponentCategory.THROTTLE
+    val isInjectors = resolvedCategory == ComponentCategory.INJECTORS
+    val isCoils = resolvedCategory == ComponentCategory.COILS
+    val isTemp = resolvedCategory == ComponentCategory.TEMP_SENSOR
+    val isMap = resolvedCategory == ComponentCategory.MAP_SENSOR
+    val isPress = resolvedCategory == ComponentCategory.FUEL_PRESSURE || resolvedCategory == ComponentCategory.OIL_PRESSURE
+    val isLambda = resolvedCategory == ComponentCategory.LAMBDA
+    val isEcuOrMod = resolvedCategory == ComponentCategory.ECU || resolvedCategory == ComponentCategory.MODULES || distinctConnectors.size >= 2
 
     return ExtractedComponentData(
       name = json.optString("name").takeIf { it.isNotBlank() },
       partNumber = json.optString("partNumber").takeIf { it.isNotBlank() },
       category = resolvedCategory,
       shortDescription = json.optString("shortDescription").takeIf { it.isNotBlank() },
-      flowRateCc = if (isInjectors) json.optDouble("flowRateCc").takeIf { !it.isNaN() && it > 0 } else null,
-      flowPressureBar = if (isInjectors) json.optDouble("flowPressureBar").takeIf { !it.isNaN() && it > 0 } else null,
-      deadTimeTables = if (isInjectors) deadTimeTablesList else emptyList(),
-      calibrationPoints = if (isCoils || isMap || isPress || category == ComponentCategory.OTHER) calPointsList else emptyList(),
+      flowRateCc = json.optDouble("flowRateCc").takeIf { !it.isNaN() && it > 0 },
+      flowPressureBar = json.optDouble("flowPressureBar").takeIf { !it.isNaN() && it > 0 },
+      deadTimeTables = deadTimeTablesList,
+      calibrationPoints = calPointsList,
       calInputUnit = calInputUnit,
       calOutputUnit = calOutputUnit,
       charTitle = json.optString("charTitle").takeIf { it.isNotBlank() },
