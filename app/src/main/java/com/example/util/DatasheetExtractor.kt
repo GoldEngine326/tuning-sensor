@@ -673,13 +673,20 @@ object DatasheetExtractor {
           if (v1 in 6.0..19.0 && v2 in 0.1..8.0) {
             // Napięcie (V) vs Czas martwy (ms)
             dtPoints.add(DeadTimePointDraft(voltage = v1.toString(), timeMs = v2.toString()))
-          } else if (v1 in -50.0..160.0 && v2 in 30.0..100000.0) {
+          } else if (v1 in -50.0..160.0 && v2 in 30.0..250000.0) {
             // Temperatura (°C) vs Rezystancja (Ω) dla czujników NTC
             resPoints.add(CalPointDraft(inVal = v1.toString(), inUnit = "°C", outVal = v2.toString(), outUnit = "Ω"))
+          } else if (v2 in -50.0..160.0 && v1 in 30.0..250000.0) {
+            // Rezystancja (Ω) vs Temperatura (°C)
+            resPoints.add(CalPointDraft(inVal = v2.toString(), inUnit = "°C", outVal = v1.toString(), outUnit = "Ω"))
           } else if (v2 in 0.0..5.5 && v1 > 0.0) {
             // Wartość wejściowa (kPa / bar) vs Napięcie wyjściowe (V)
             val unit = if (v1 > 15.0) "kPa" else "bar"
             calPoints.add(CalPointDraft(inVal = v1.toString(), inUnit = unit, outVal = v2.toString(), outUnit = "V"))
+          } else if (v1 in 0.0..5.5 && v2 > 0.0) {
+            // Napięcie wyjściowe (V) vs Wartość wejściowa (kPa / bar)
+            val unit = if (v2 > 15.0) "kPa" else "bar"
+            calPoints.add(CalPointDraft(inVal = v2.toString(), inUnit = unit, outVal = v1.toString(), outUnit = "V"))
           }
         }
       }
@@ -770,15 +777,34 @@ BARDZO WAŻNA ZASADA DLA WTRYSKIWACZY I TABEL DEAD TIME (BATERIA CIŚNIEŃ):
    - MUSISZ WYODRĘBNIĆ WSZYSTKIE POZIOMY CIŚNIENIA! Każdy poziom ciśnienia to OSOBNY ELEMENT w tablicy "deadTimeTables".
    - Jeśli na zdjęciu jest 8 wierszy z ciśnieniami, tablica "deadTimeTables" MUSI zawierać DOKŁADNIE 8 OBIEKTÓW!
 
-ZASADY DLA POZOSTAŁYCH CZUJNIKÓW:
-4. Dla czujników MAP i ciśnienia: odczytaj całą charakterystykę kalibracyjną (kPa/bar vs V) do "calibrationPoints".
-5. Dla czujników temperatury (NTC): odczytaj pełną tabelę oporności (°C vs Ω) do "resistancePoints" oraz zaznacz pullupRequired = true.
+ZASADY DLA CHARAKTERYSTYKI KALIBRACYJNEJ CIŚNIENIA (MAP SENSOR, FUEL PRESSURE, OIL PRESSURE):
+4. Jeśli zdjęcie lub dokument zawiera tabelę, wykres liniowy lub opis punktów kalibracji ciśnienia (np. MAP 20-300 kPa vs 0.40-4.65V, lub czujnik ciśnienia paliwa/oleju 0-10 bar vs 0.5-4.5V):
+   - MUSISZ WYODRĘBNIĆ WSZYSTKIE PUNKTY do tablicy "calibrationPoints"!
+   - Każdy punkt to obiekt z polami:
+     * "inputValue": wartość ciśnienia jako string liczb (np. "20", "50", "100", "200", "300")
+     * "inputUnit": jednostka ciśnienia (np. "kPa" lub "bar" lub "psi")
+     * "outputValue": napięcie wyjściowe w woltach (np. "0.40", "1.60", "3.10", "4.65")
+     * "outputUnit": "V"
+   - Nawet jeśli na wykresie lub w nocie podano tylko punkty skrajne (np. P1: 20 kPa = 0.4V i P2: 300 kPa = 4.65V), BEZWZGLĘDNIE WPISZ JE do "calibrationPoints"!
+   - W polu "calInputUnit" wpisz "kPa" lub "bar", w "calOutputUnit" wpisz "V".
+
+ZASADY DLA CHARAKTERYSTYKI TEMPERATURY I OPORNOŚCI NTC (IAT, CLT, OLEJ ORAZ ZESPOLONE T-MAP):
+5. Jeśli zdjęcie lub dokument zawiera tabelę lub wykres temperatury i rezystancji termistora (np. NTC od -40°C do +120°C vs omy/kilo-omy, lub czujnik ciśnienia ze zintegrowaną temperaturą dolotu T-MAP):
+   - MUSISZ WYODRĘBNIĆ WSZYSTKIE PUNKTY do tablicy "resistancePoints"!
+   - Każdy punkt to obiekt z polami:
+     * "inputValue": temperatura w stopniach Celsjusza (np. "-20", "0", "20", "40", "60", "80", "100")
+     * "inputUnit": "°C"
+     * "outputValue": wartość oporności w omach bez jednostki (np. "15000", "5800", "2500", "1150", "320")
+     * "outputUnit": "Ω"
+   - Ustaw "includeResistanceChar": true oraz "pullupRequired": true i "pullupValue": "2.49 kΩ do +5V".
+   - DLA CZUJNIKÓW ZESPOLONYCH T-MAP (np. Bosch 4-pin: MAP + IAT): ustaw "category": "MAP_SENSOR" oraz wypełnij ZARÓWNO "calibrationPoints" (dla ciśnienia) JAK I "resistancePoints" (dla temperatury IAT)!
+
 6. Dla przepustnic (DBW): odczytaj średnice (wewnętrzna i zewnętrzna), rozstawy śrub montażowych oraz schemat pinoutu DBW.
 
 STRUKTURA ZWRACANEGO JSON:
 Zwróć wszystkie piny WYŁĄCZNIE w tablicy "pins" (każdy pin z polem "connectorName"). NIGDY nie twórz pustych pinów ani nie duplikuj pinów.
 {
-  "name": "Pełna nazwa podzespołu w języku polskim (np. Wtryskiwacze Bosch EV14 630cc lub EMU Black Standalone)",
+  "name": "Pełna nazwa podzespołu w języku polskim (np. Czujnik MAP Bosch 3.0 Bar lub Wtryskiwacze Bosch EV14 630cc)",
   "partNumber": "Numer katalogowy / OE (lub nazwa modelu)",
   "category": "Jeden z: INJECTORS, THROTTLE, COILS, MAP_SENSOR, TEMP_SENSOR, FUEL_PRESSURE, OIL_PRESSURE, LAMBDA, ECU, MODULES, OTHER",
   "shortDescription": "Zwięzły i dokładny opis podzespołu w języku polskim",
@@ -800,15 +826,28 @@ Zwróć wszystkie piny WYŁĄCZNIE w tablicy "pins" (każdy pin z polem "connect
       ]
     }
   ],
-  "calibrationPoints": [],
+  "calibrationPoints": [
+    { "inputValue": "20.0", "inputUnit": "kPa", "outputValue": "0.40", "outputUnit": "V" },
+    { "inputValue": "100.0", "inputUnit": "kPa", "outputValue": "1.60", "outputUnit": "V" },
+    { "inputValue": "200.0", "inputUnit": "kPa", "outputValue": "3.10", "outputUnit": "V" },
+    { "inputValue": "300.0", "inputUnit": "kPa", "outputValue": "4.65", "outputUnit": "V" }
+  ],
   "calInputUnit": "kPa",
   "calOutputUnit": "V",
-  "charTitle": "Charakterystyka kalibracyjna",
+  "charTitle": "Kalibracja liniowa ciśnienia (kPa vs V)",
   "includeResistanceChar": false,
   "resInputUnit": "°C",
   "resOutputUnit": "Ω",
   "resCharTitle": "Charakterystyka opornościowa NTC",
-  "resistancePoints": [],
+  "resistancePoints": [
+    { "inputValue": "-20", "inputUnit": "°C", "outputValue": "15000", "outputUnit": "Ω" },
+    { "inputValue": "0", "inputUnit": "°C", "outputValue": "5800", "outputUnit": "Ω" },
+    { "inputValue": "20", "inputUnit": "°C", "outputValue": "2500", "outputUnit": "Ω" },
+    { "inputValue": "40", "inputUnit": "°C", "outputValue": "1150", "outputUnit": "Ω" },
+    { "inputValue": "60", "inputUnit": "°C", "outputValue": "590", "outputUnit": "Ω" },
+    { "inputValue": "80", "inputUnit": "°C", "outputValue": "320", "outputUnit": "Ω" },
+    { "inputValue": "100", "inputUnit": "°C", "outputValue": "180", "outputUnit": "Ω" }
+  ],
   "pullupRequired": false,
   "pullupValue": "",
   "innerDiameterMm": null,
@@ -821,10 +860,10 @@ Zwróć wszystkie piny WYŁĄCZNIE w tablicy "pins" (każdy pin z polem "connect
     {
       "pinNumber": "1",
       "connectorName": "Wtyczka A",
-      "name": "Masa główna Power GND",
-      "description": "Masa zasilająca sterownik",
-      "wireColor": "Czarny",
-      "type": "GROUND"
+      "name": "Masa sensoryczna Sensor GND",
+      "description": "Masa czujnika z ECU",
+      "wireColor": "Brązowy",
+      "type": "SENSOR_GND"
     }
   ],
   "importantNotes": "Ważne uwagi instalacyjne, zalecenia tunera w języku polskim",
@@ -1180,38 +1219,189 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
       bulletsList.add("Wyodrębniono ${deadTimeTablesList.size} tabel Dead Time dla różnych ciśnień")
     }
 
-    // Calibration points
+    // Funkcje pomocnicze do czyszczenia liczb i parsowania punktów kalibracji / rezystancji
+    fun cleanNumStr(raw: String): String {
+      return raw.replace(",", ".")
+        .replace(Regex("""[^\d.\-+]"""), "")
+        .trim()
+    }
+
+    fun parsePointObject(obj: JSONObject, defaultInUnit: String, defaultOutUnit: String, isTemp: Boolean): CalPointDraft? {
+      var inVal = obj.optString("inputValue", "").ifBlank {
+        obj.optString("input", "").ifBlank {
+          obj.optString("in", "").ifBlank {
+            if (isTemp) {
+              obj.optString("temperature", "").ifBlank {
+                obj.optString("temp", "").ifBlank {
+                  obj.optString("tempC", "").ifBlank {
+                    obj.optString("celsius", "").ifBlank {
+                      obj.optString("deg", "")
+                    }
+                  }
+                }
+              }
+            } else {
+              obj.optString("pressure", "").ifBlank {
+                obj.optString("kpa", "").ifBlank {
+                  obj.optString("bar", "").ifBlank {
+                    obj.optString("psi", "").ifBlank {
+                      obj.optString("pressureKpa", "").ifBlank {
+                        obj.optString("pressureBar", "")
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      if (inVal.isBlank()) inVal = obj.optString("x", "")
+      if (inVal.isBlank()) inVal = obj.opt("inputValue")?.toString() ?: obj.opt("input")?.toString() ?: obj.opt("pressure")?.toString() ?: obj.opt("temperature")?.toString() ?: ""
+
+      var outVal = obj.optString("outputValue", "").ifBlank {
+        obj.optString("output", "").ifBlank {
+          obj.optString("out", "").ifBlank {
+            if (isTemp) {
+              obj.optString("resistance", "").ifBlank {
+                obj.optString("res", "").ifBlank {
+                  obj.optString("ohm", "").ifBlank {
+                    obj.optString("ohms", "").ifBlank {
+                      obj.optString("kohm", "").ifBlank {
+                        obj.optString("kohms", "")
+                      }
+                    }
+                  }
+                }
+              }
+            } else {
+              obj.optString("voltage", "").ifBlank {
+                obj.optString("v", "").ifBlank {
+                  obj.optString("volt", "").ifBlank {
+                    obj.optString("volts", "")
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      if (outVal.isBlank()) outVal = obj.optString("y", "")
+      if (outVal.isBlank()) outVal = obj.opt("outputValue")?.toString() ?: obj.opt("output")?.toString() ?: obj.opt("voltage")?.toString() ?: obj.opt("resistance")?.toString() ?: ""
+
+      var inUnit = obj.optString("inputUnit", defaultInUnit).ifBlank { defaultInUnit }
+      var outUnit = obj.optString("outputUnit", defaultOutUnit).ifBlank { defaultOutUnit }
+
+      // Obsługa kΩ -> Ω dla rezystancji termistora NTC
+      val rawOutLower = outVal.lowercase()
+      if (isTemp && (rawOutLower.contains("k") || outUnit.contains("k", ignoreCase = true))) {
+        val num = cleanNumStr(outVal).toDoubleOrNull()
+        if (num != null && num < 100.0) {
+          outVal = (num * 1000).toInt().toString()
+          outUnit = "Ω"
+        }
+      }
+
+      val cleanIn = cleanNumStr(inVal)
+      val cleanOut = cleanNumStr(outVal)
+      if (cleanIn.isBlank() || cleanOut.isBlank()) return null
+
+      // Inteligentne wykrywanie odwróconych kolumn (np. w tabeli wpisano napięcie jako wejście, a ciśnienie jako wyjście)
+      val dIn = cleanIn.toDoubleOrNull()
+      val dOut = cleanOut.toDoubleOrNull()
+      if (dIn != null && dOut != null) {
+        if (!isTemp && dIn in 0.0..5.5 && dOut > 10.0) {
+          // dIn to V, dOut to kPa
+          return CalPointDraft(inVal = cleanOut, inUnit = inUnit, outVal = cleanIn, outUnit = outUnit)
+        }
+        if (isTemp && dIn > 150.0 && dOut in -50.0..150.0) {
+          // dIn to Ω, dOut to °C
+          return CalPointDraft(inVal = cleanOut, inUnit = inUnit, outVal = cleanIn, outUnit = outUnit)
+        }
+      }
+
+      return CalPointDraft(inVal = cleanIn, inUnit = inUnit, outVal = cleanOut, outUnit = outUnit)
+    }
+
+    // Calibration points (Punkty kalibracji ciśnienia MAP / Paliwo / Olej / Moduł)
     val calPointsList = mutableListOf<CalPointDraft>()
     val calArr = json.optJSONArray("calibrationPoints")
-    val calInputUnit = json.optString("calInputUnit", "kPa").ifBlank { "kPa" }
-    val calOutputUnit = json.optString("calOutputUnit", "V").ifBlank { "V" }
+      ?: json.optJSONArray("pressurePoints")
+      ?: json.optJSONArray("pressureTable")
+      ?: json.optJSONArray("calibration")
+      ?: json.optJSONArray("calibration_points")
+      ?: json.optJSONArray("calibrationTable")
+      ?: json.optJSONArray("mapPoints")
+      ?: json.optJSONArray("characteristicPoints")
+      ?: if (category == ComponentCategory.MAP_SENSOR || category == ComponentCategory.FUEL_PRESSURE || category == ComponentCategory.OIL_PRESSURE) json.optJSONArray("points") else null
+
+    val calInputUnit = json.optString("calInputUnit", json.optString("pressureUnit", "kPa")).ifBlank { "kPa" }
+    val calOutputUnit = json.optString("calOutputUnit", json.optString("voltageUnit", "V")).ifBlank { "V" }
+
     if (calArr != null) {
       for (i in 0 until calArr.length()) {
-        val pObj = calArr.optJSONObject(i) ?: continue
-        val inVal = pObj.optString("inputValue", "")
-        val inUnit = pObj.optString("inputUnit", calInputUnit).ifBlank { calInputUnit }
-        val outVal = pObj.optString("outputValue", "")
-        val outUnit = pObj.optString("outputUnit", calOutputUnit).ifBlank { calOutputUnit }
-        if (inVal.isNotBlank() && outVal.isNotBlank()) {
-          calPointsList.add(CalPointDraft(inVal = inVal, inUnit = inUnit, outVal = outVal, outUnit = outUnit))
+        val pObj = calArr.optJSONObject(i)
+        if (pObj != null) {
+          val pt = parsePointObject(pObj, calInputUnit, calOutputUnit, isTemp = false)
+          if (pt != null) calPointsList.add(pt)
+        } else {
+          val pSubArr = calArr.optJSONArray(i)
+          if (pSubArr != null && pSubArr.length() >= 2) {
+            val v1 = cleanNumStr(pSubArr.opt(0).toString())
+            val v2 = cleanNumStr(pSubArr.opt(1).toString())
+            if (v1.isNotBlank() && v2.isNotBlank()) {
+              val d1 = v1.toDoubleOrNull()
+              val d2 = v2.toDoubleOrNull()
+              if (d1 != null && d2 != null && d1 in 0.0..5.5 && d2 > 10.0) {
+                calPointsList.add(CalPointDraft(inVal = v2, inUnit = calInputUnit, outVal = v1, outUnit = calOutputUnit))
+              } else {
+                calPointsList.add(CalPointDraft(inVal = v1, inUnit = calInputUnit, outVal = v2, outUnit = calOutputUnit))
+              }
+            }
+          }
         }
       }
     }
 
-    // Resistance points
+    // Resistance points (Punkty charakterystyki opornościowej NTC / Temp / IAT / CLT)
     val resPointsList = mutableListOf<CalPointDraft>()
     val resArr = json.optJSONArray("resistancePoints")
-    val resInputUnit = json.optString("resInputUnit", "°C").ifBlank { "°C" }
-    val resOutputUnit = json.optString("resOutputUnit", "Ω").ifBlank { "Ω" }
+      ?: json.optJSONArray("temperaturePoints")
+      ?: json.optJSONArray("temperatureTable")
+      ?: json.optJSONArray("ntcTable")
+      ?: json.optJSONArray("ntcPoints")
+      ?: json.optJSONArray("tempPoints")
+      ?: json.optJSONArray("tempTable")
+      ?: json.optJSONArray("tempCurve")
+      ?: json.optJSONArray("resistance_points")
+      ?: json.optJSONArray("resistanceTable")
+      ?: json.optJSONArray("resistance")
+      ?: if (category == ComponentCategory.TEMP_SENSOR) json.optJSONArray("points") else null
+
+    val resInputUnit = json.optString("resInputUnit", json.optString("tempUnit", "°C")).ifBlank { "°C" }
+    val resOutputUnit = json.optString("resOutputUnit", json.optString("resistanceUnit", "Ω")).ifBlank { "Ω" }
+
     if (resArr != null) {
       for (i in 0 until resArr.length()) {
-        val pObj = resArr.optJSONObject(i) ?: continue
-        val inVal = pObj.optString("inputValue", "")
-        val inUnit = pObj.optString("inputUnit", resInputUnit).ifBlank { resInputUnit }
-        val outVal = pObj.optString("outputValue", "")
-        val outUnit = pObj.optString("outputUnit", resOutputUnit).ifBlank { resOutputUnit }
-        if (inVal.isNotBlank() && outVal.isNotBlank()) {
-          resPointsList.add(CalPointDraft(inVal = inVal, inUnit = inUnit, outVal = outVal, outUnit = outUnit))
+        val pObj = resArr.optJSONObject(i)
+        if (pObj != null) {
+          val pt = parsePointObject(pObj, resInputUnit, resOutputUnit, isTemp = true)
+          if (pt != null) resPointsList.add(pt)
+        } else {
+          val pSubArr = resArr.optJSONArray(i)
+          if (pSubArr != null && pSubArr.length() >= 2) {
+            val v1 = cleanNumStr(pSubArr.opt(0).toString())
+            val v2 = cleanNumStr(pSubArr.opt(1).toString())
+            if (v1.isNotBlank() && v2.isNotBlank()) {
+              val d1 = v1.toDoubleOrNull()
+              val d2 = v2.toDoubleOrNull()
+              if (d1 != null && d2 != null && d1 > 150.0 && d2 in -50.0..150.0) {
+                resPointsList.add(CalPointDraft(inVal = v2, inUnit = resInputUnit, outVal = v1, outUnit = resOutputUnit))
+              } else {
+                resPointsList.add(CalPointDraft(inVal = v1, inUnit = resInputUnit, outVal = v2, outUnit = resOutputUnit))
+              }
+            }
+          }
         }
       }
     }
@@ -1332,13 +1522,21 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
     }
     val pinsList = dedupedMap.values.toList()
 
-    // Aktualizacja podsumowania o odczytane wtyczki
+    // Aktualizacja podsumowania o odczytane wtyczki i tabele
     val distinctConnectors = pinsList.map { it.connectorName.ifBlank { "Wtyczka A" } }.distinct()
     if (distinctConnectors.size > 1 && !bulletsList.any { it.contains("wtycz", ignoreCase = true) }) {
       bulletsList.add("✔ Odczytano pinout ze wszystkich ${distinctConnectors.size} wtyczek (${distinctConnectors.joinToString()}) — łącznie ${pinsList.size} pinów")
     }
+    if (calPointsList.isNotEmpty() && !bulletsList.any { it.contains("kalibracj", ignoreCase = true) || it.contains("ciśnieni", ignoreCase = true) }) {
+      bulletsList.add("✔ Odczytano kalibrację ciśnienia (${calPointsList.size} punktów)")
+    }
+    if (resPointsList.isNotEmpty() && !bulletsList.any { it.contains("temperatur", ignoreCase = true) || it.contains("oporności", ignoreCase = true) || it.contains("rezystancj", ignoreCase = true) || it.contains("NTC", ignoreCase = true) }) {
+      bulletsList.add("✔ Odczytano charakterystykę temperatury/oporności (${resPointsList.size} punktów)")
+    }
 
     val resolvedCategory = when {
+      category == ComponentCategory.INJECTORS && deadTimeTablesList.isEmpty() && calPointsList.isNotEmpty() -> ComponentCategory.MAP_SENSOR
+      category == ComponentCategory.INJECTORS && deadTimeTablesList.isEmpty() && resPointsList.isNotEmpty() -> ComponentCategory.TEMP_SENSOR
       category != null -> category
       deadTimeTablesList.isNotEmpty() -> ComponentCategory.INJECTORS
       distinctConnectors.size >= 2 -> ComponentCategory.ECU
@@ -1355,6 +1553,7 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
     val isPress = resolvedCategory == ComponentCategory.FUEL_PRESSURE || resolvedCategory == ComponentCategory.OIL_PRESSURE
     val isLambda = resolvedCategory == ComponentCategory.LAMBDA
     val isEcuOrMod = resolvedCategory == ComponentCategory.ECU || resolvedCategory == ComponentCategory.MODULES || distinctConnectors.size >= 2
+    val hasResistance = resPointsList.isNotEmpty()
 
     return ExtractedComponentData(
       name = json.optString("name").takeIf { it.isNotBlank() },
@@ -1368,13 +1567,13 @@ Zwróć wyłącznie poprawny obiekt JSON, bez znaczników markdown ```json ani z
       calInputUnit = calInputUnit,
       calOutputUnit = calOutputUnit,
       charTitle = json.optString("charTitle").takeIf { it.isNotBlank() },
-      includeResistanceChar = if (isTemp) true else if (isThrottle || isInjectors || isCoils || isLambda || isEcuOrMod) false else json.optBoolean("includeResistanceChar", resPointsList.isNotEmpty()),
+      includeResistanceChar = if (isTemp || ((isMap || isPress) && hasResistance)) true else if (isThrottle || isInjectors || isCoils || isLambda) false else json.optBoolean("includeResistanceChar", hasResistance),
       resInputUnit = resInputUnit,
       resOutputUnit = resOutputUnit,
       resCharTitle = json.optString("resCharTitle").takeIf { it.isNotBlank() },
-      resistancePoints = if (isThrottle || isInjectors || isCoils || isLambda || isEcuOrMod) emptyList() else resPointsList,
-      pullupRequired = if (isTemp) true else if (isThrottle || isInjectors || isCoils || isLambda || isEcuOrMod) false else json.optBoolean("pullupRequired", false),
-      pullupRecommendedValue = if (isThrottle || isInjectors || isCoils || isLambda || isEcuOrMod) null else json.optString("pullupValue").takeIf { it.isNotBlank() },
+      resistancePoints = if (isThrottle || isInjectors || isCoils || isLambda) emptyList() else resPointsList,
+      pullupRequired = if (isTemp || ((isMap || isPress) && hasResistance)) true else if (isThrottle || isInjectors || isCoils || isLambda) false else json.optBoolean("pullupRequired", hasResistance),
+      pullupRecommendedValue = if (isThrottle || isInjectors || isCoils || isLambda) null else json.optString("pullupValue", "2.49 kΩ do +5V").takeIf { it.isNotBlank() } ?: (if (hasResistance) "2.49 kΩ do +5V" else null),
       innerDiameterMm = if (isThrottle) json.optDouble("innerDiameterMm").takeIf { !it.isNaN() && it > 0 } else null,
       outerDiameterMm = if (isThrottle) json.optDouble("outerDiameterMm").takeIf { !it.isNaN() && it > 0 } else null,
       boltSpacingWidthMm = if (isThrottle) json.optDouble("boltSpacingWidthMm").takeIf { !it.isNaN() && it > 0 } else null,

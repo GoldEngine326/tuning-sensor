@@ -996,6 +996,49 @@ fun AddComponentDialog(
           data.resCharTitle?.let { resCharTitle = it }
           data.pullupRequired?.let { pullupRequired = it }
           data.pullupRecommendedValue?.let { pullupValue = it }
+
+          // Automatyczne dopasowanie kategorii i flag na podstawie wyodrębnionych danych
+          if (data.calibrationPoints.isNotEmpty() && data.resistancePoints.isNotEmpty()) {
+            // Czujnik zespolony np. T-MAP (MAP + IAT) lub Combo Ciśnienie + Temp paliwa/oleju
+            category = data.category ?: ComponentCategory.MAP_SENSOR
+            if (category == ComponentCategory.MAP_SENSOR) {
+              isComboTmapSensor = true
+            } else if (category == ComponentCategory.FUEL_PRESSURE) {
+              isComboFuelPressureTempSensor = true
+            } else if (category == ComponentCategory.OIL_PRESSURE) {
+              isComboOilPressureTempSensor = true
+            }
+            includeResistanceChar = true
+            pullupRequired = true
+            if (pullupValue.isBlank()) pullupValue = "2.49 kΩ do +5V"
+          } else if (data.calibrationPoints.isNotEmpty() && data.deadTimeTables.isEmpty()) {
+            // Wykryto punkty kalibracji ciśnienia (i brak wtryskiwaczy)
+            if (category == ComponentCategory.INJECTORS || category == ComponentCategory.THROTTLE || category == ComponentCategory.COILS) {
+              category = data.category ?: ComponentCategory.MAP_SENSOR
+            }
+            if (category == ComponentCategory.OTHER) {
+              showGenericOtherCalibration = true
+            }
+          } else if (data.resistancePoints.isNotEmpty() && data.deadTimeTables.isEmpty()) {
+            // Wykryto punkty temperatury / NTC
+            if (category != ComponentCategory.TEMP_SENSOR && category != ComponentCategory.MAP_SENSOR && category != ComponentCategory.FUEL_PRESSURE && category != ComponentCategory.OIL_PRESSURE) {
+              category = data.category ?: ComponentCategory.TEMP_SENSOR
+            }
+            if (category == ComponentCategory.MAP_SENSOR) {
+              isComboTmapSensor = true
+            } else if (category == ComponentCategory.FUEL_PRESSURE) {
+              isComboFuelPressureTempSensor = true
+            } else if (category == ComponentCategory.OIL_PRESSURE) {
+              isComboOilPressureTempSensor = true
+            } else if (category == ComponentCategory.OTHER) {
+              showGenericOtherResistance = true
+              showGenericOtherPullup = true
+            }
+            includeResistanceChar = true
+            pullupRequired = true
+            if (pullupValue.isBlank()) pullupValue = "2.49 kΩ do +5V"
+          }
+
           data.innerDiameterMm?.let { innerDiameterInput = if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() }
           data.outerDiameterMm?.let { outerDiameterInput = if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() }
           data.boltSpacingWidthMm?.let { boltSpacingWidthInput = if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() }
@@ -1030,11 +1073,11 @@ fun AddComponentDialog(
               category == ComponentCategory.INJECTORS ||
               category == ComponentCategory.COILS ||
               category == ComponentCategory.LAMBDA ||
-              category == ComponentCategory.ECU ||
-              category == ComponentCategory.MODULES) {
+              category == ComponentCategory.ECU) {
             pullupRequired = false
             includeResistanceChar = false
             isComboTmapSensor = false
+            isComboFuelPressureTempSensor = false
             isComboOilPressureTempSensor = false
           }
         },
