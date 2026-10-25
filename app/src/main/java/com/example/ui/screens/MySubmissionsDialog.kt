@@ -51,6 +51,7 @@ import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.TunerAmber
 import com.example.ui.theme.TunerCyan
+import com.example.ui.components.ComponentThumbnail
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -178,12 +179,37 @@ fun MySubmissionsDialog(
                     }
 
                     Spacer(Modifier.height(6.dp))
-                    Text(
-                      text = req.targetSensorName,
-                      fontSize = 15.sp,
-                      fontWeight = FontWeight.Bold,
-                      color = TextPrimary
-                    )
+                    Row(
+                      modifier = Modifier.fillMaxWidth(),
+                      verticalAlignment = Alignment.CenterVertically
+                    ) {
+                      val img = (req.sensorData["imageUrl"] as? String)?.ifBlank { null }
+                        ?: (req.sensorData["images"] as? List<*>)?.filterIsInstance<String>()?.firstOrNull()
+                      if (img != null) {
+                        ComponentThumbnail(
+                          imageUrl = img,
+                          vectorKey = "map_3b",
+                          modifier = Modifier.size(44.dp)
+                        )
+                        Spacer(Modifier.width(10.dp))
+                      }
+                      Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                          text = req.targetSensorName,
+                          fontSize = 15.sp,
+                          fontWeight = FontWeight.Bold,
+                          color = TextPrimary
+                        )
+                        val partNo = req.sensorData["partNumber"] as? String ?: ""
+                        if (partNo.isNotBlank()) {
+                          Text(
+                            text = "OEM: $partNo",
+                            fontSize = 11.sp,
+                            color = TunerCyan
+                          )
+                        }
+                      }
+                    }
 
                     Spacer(Modifier.height(6.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {

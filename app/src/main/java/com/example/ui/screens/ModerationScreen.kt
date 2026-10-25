@@ -77,9 +77,26 @@ import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.TunerAmber
 import com.example.ui.theme.TunerCyan
 import com.example.ui.theme.TuningRed
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material.icons.filled.Cable
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.ZoomIn
+import com.example.ui.components.ComponentThumbnail
+import com.example.ui.components.FullScreenImageViewerDialog
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+data class ModerationPhotoPreviewState(
+  val images: List<String>,
+  val initialIndex: Int = 0,
+  val title: String,
+  val partNumber: String
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -109,6 +126,21 @@ fun ModerationScreen(
   var rejectingRequest by remember { mutableStateOf<ModerationRequest?>(null) }
   var rejectionReasonInput by remember { mutableStateOf("") }
   var isProcessing by remember { mutableStateOf(false) }
+  var photoPreviewState by remember { mutableStateOf<ModerationPhotoPreviewState?>(null) }
+
+  // Powiększenie zdjęć w pełnym ekranie ze sterowaniem zoomem (pinch-to-zoom)
+  if (photoPreviewState != null) {
+    val state = photoPreviewState!!
+    FullScreenImageViewerDialog(
+      imageUrl = state.images.getOrNull(state.initialIndex),
+      images = state.images,
+      initialIndex = state.initialIndex,
+      vectorKey = "map_3b",
+      title = state.title,
+      partNumber = state.partNumber,
+      onDismiss = { photoPreviewState = null }
+    )
+  }
 
   // Modal Dialog do wpisania powodu odrzucenia
   if (rejectingRequest != null) {
@@ -331,7 +363,15 @@ fun ModerationScreen(
             ModerationCard(
               request = request,
               onApprove = { onApprove(request) },
-              onReject = { rejectingRequest = request }
+              onReject = { rejectingRequest = request },
+              onPhotoClick = { imgs, idx, title, partNo ->
+                photoPreviewState = ModerationPhotoPreviewState(
+                  images = imgs,
+                  initialIndex = idx,
+                  title = title,
+                  partNumber = partNo
+                )
+              }
             )
           }
         }
@@ -345,6 +385,7 @@ fun ModerationCard(
   request: ModerationRequest,
   onApprove: () -> Unit,
   onReject: () -> Unit,
+  onPhotoClick: (images: List<String>, index: Int, title: String, partNumber: String) -> Unit,
   modifier: Modifier = Modifier
 ) {
   val dateFormat = remember { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()) }
@@ -358,6 +399,8 @@ fun ModerationCard(
     ModerationType.EDIT -> Icons.Default.Edit
     ModerationType.DELETE -> Icons.Default.Delete
   }
+
+  var isDetailsExpanded by remember { mutableStateOf(false) }
 
   Card(
     modifier = modifier.fillMaxWidth(),
@@ -442,7 +485,16 @@ fun ModerationCard(
         val partNum = request.sensorData["partNumber"] as? String ?: ""
         val categoryStr = request.sensorData["category"] as? String ?: ""
         val pinsCount = (request.sensorData["pins"] as? List<*>)?.size ?: 0
-        val imagesCount = (request.sensorData["images"] as? List<*>)?.size ?: 0
+
+        // Bezpieczne pobranie wszystkich zdjęć (głównych i dodatkowych)
+        val rawImages = (request.sensorData["images"] as? List<*>)?.filterIsInstance<String>() ?: emptyList()
+        val singleImg = (request.sensorData["imageUrl"] as? String)?.ifBlank { null }
+        val allSensorPhotos = remember(request.sensorData) {
+          if (rawImages.isNotEmpty()) rawImages else listOfNotNull(singleImg)
+        }
+        val connectorPhoto = remember(request.sensorData) {
+          (request.sensorData["connectorImageUrl"] as? String)?.ifBlank { null }
+        }
 
         Spacer(Modifier.height(8.dp))
         Row(
@@ -458,8 +510,193 @@ fun ModerationCard(
           if (pinsCount > 0) {
             InfoChip(label = "Piny: $pinsCount")
           }
-          if (imagesCount > 0) {
-            InfoChip(label = "Zdjęcia: 📷 $imagesCount")
+          if (allSensorPhotos.isNotEmpty()) {
+            InfoChip(label = "Zdjęcia czujnika: 📷 ${allSensorPhotos.size}")
+          }
+          if (connectorPhoto != null) {
+            InfoChip(label = "Wtyczka: 🔌 1")
+          }
+        }
+
+        // --- GALERIA PODGLĄDU ZDJĘĆ ZGŁOSZENIA ---
+        if (allSensorPhotos.isNotEmpty() || connectorPhoto != null) {
+          Spacer(Modifier.height(10.dp))
+          Column(
+            modifier = Modifier
+              .fillMaxWidth()
+              .clip(RoundedCornerShape(8.dp))
+              .background(DarkSurfaceVariant)
+              .padding(10.dp)
+          ) {
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Image, contentDescription = null, tint = TunerCyan, modifier = Modifier.size(15.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(
+                  text = "Załączone zdjęcia (${allSensorPhotos.size + (if (connectorPhoto != null) 1 else 0)}):",
+                  fontSize = 11.sp,
+                  fontWeight = FontWeight.Bold,
+                  color = TunerCyan
+                )
+              }
+              Text(
+                text = "Dotknij, aby powiększyć",
+                fontSize = 10.sp,
+                color = TextMuted
+              )
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            LazyRow(
+              horizontalArrangement = Arrangement.spacedBy(8.dp),
+              modifier = Modifier.fillMaxWidth()
+            ) {
+              itemsIndexed(allSensorPhotos) { index, photoUrl ->
+                Box(
+                  modifier = Modifier
+                    .size(92.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .border(
+                      width = if (index == 0) 2.dp else 1.dp,
+                      color = if (index == 0) TunerCyan else BorderStroke,
+                      shape = RoundedCornerShape(8.dp)
+                    )
+                    .clickable {
+                      onPhotoClick(allSensorPhotos, index, request.targetSensorName, partNum)
+                    }
+                ) {
+                  ComponentThumbnail(
+                    imageUrl = photoUrl,
+                    vectorKey = request.sensorData["vectorIllustrationKey"] as? String ?: "map_3b",
+                    modifier = Modifier.fillMaxSize()
+                  )
+
+                  if (index == 0) {
+                    Box(
+                      modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .background(TunerCyan, RoundedCornerShape(bottomEnd = 4.dp))
+                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                    ) {
+                      Text("Główne", fontSize = 8.sp, color = Color.Black, fontWeight = FontWeight.Bold)
+                    }
+                  }
+
+                  Box(
+                    modifier = Modifier
+                      .align(Alignment.BottomEnd)
+                      .padding(2.dp)
+                      .background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(4.dp))
+                      .padding(horizontal = 4.dp, vertical = 2.dp)
+                  ) {
+                    Icon(Icons.Default.ZoomIn, contentDescription = "Powiększ", tint = TunerCyan, modifier = Modifier.size(12.dp))
+                  }
+                }
+              }
+
+              if (connectorPhoto != null) {
+                item {
+                  Box(
+                    modifier = Modifier
+                      .size(92.dp)
+                      .clip(RoundedCornerShape(8.dp))
+                      .border(1.dp, TunerAmber, RoundedCornerShape(8.dp))
+                      .clickable {
+                        onPhotoClick(listOf(connectorPhoto), 0, "Wtyczka: ${request.targetSensorName}", partNum)
+                      }
+                  ) {
+                    ComponentThumbnail(
+                      imageUrl = connectorPhoto,
+                      vectorKey = "map_3b",
+                      modifier = Modifier.fillMaxSize()
+                    )
+
+                    Box(
+                      modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .background(TunerAmber, RoundedCornerShape(bottomEnd = 4.dp))
+                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                    ) {
+                      Text("Wtyczka", fontSize = 8.sp, color = Color.Black, fontWeight = FontWeight.Bold)
+                    }
+
+                    Box(
+                      modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(2.dp)
+                        .background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(4.dp))
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                    ) {
+                      Icon(Icons.Default.ZoomIn, contentDescription = "Powiększ", tint = TunerAmber, modifier = Modifier.size(12.dp))
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // Rozwijany podgląd techniczny (piny, opis)
+        Spacer(Modifier.height(6.dp))
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(6.dp))
+            .clickable { isDetailsExpanded = !isDetailsExpanded }
+            .padding(vertical = 4.dp),
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+          Text(
+            text = if (isDetailsExpanded) "Ukryj szczegóły techniczne" else "Pokaż szczegóły techniczne (piny, kalibracja)",
+            fontSize = 11.sp,
+            color = TunerAmber,
+            fontWeight = FontWeight.SemiBold
+          )
+          Icon(
+            imageVector = if (isDetailsExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+            contentDescription = null,
+            tint = TunerAmber,
+            modifier = Modifier.size(16.dp)
+          )
+        }
+
+        if (isDetailsExpanded) {
+          val pins = (request.sensorData["pins"] as? List<Map<String, Any>>) ?: emptyList()
+          val shortDesc = request.sensorData["shortDescription"] as? String ?: ""
+          val importantNotes = request.sensorData["importantNotes"] as? String ?: ""
+
+          Column(
+            modifier = Modifier
+              .fillMaxWidth()
+              .clip(RoundedCornerShape(6.dp))
+              .background(DarkSurfaceVariant.copy(alpha = 0.7f))
+              .padding(8.dp)
+          ) {
+            if (shortDesc.isNotBlank()) {
+              Text("Opis:", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+              Text(shortDesc, fontSize = 11.sp, color = TextPrimary)
+              Spacer(Modifier.height(4.dp))
+            }
+            if (pins.isNotEmpty()) {
+              Text("Rozpiska pinów (${pins.size}):", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TunerCyan)
+              pins.forEach { p ->
+                val num = p["pinNumber"] as? String ?: ""
+                val pName = p["name"] as? String ?: ""
+                val pDesc = p["description"] as? String ?: ""
+                Text("• Pin $num: $pName ${if (pDesc.isNotBlank()) "($pDesc)" else ""}", fontSize = 11.sp, color = TextPrimary)
+              }
+              Spacer(Modifier.height(4.dp))
+            }
+            if (importantNotes.isNotBlank()) {
+              Text("Ważne uwagi:", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TuningRed)
+              Text(importantNotes, fontSize = 11.sp, color = TextPrimary)
+            }
           }
         }
       }

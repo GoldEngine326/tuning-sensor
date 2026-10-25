@@ -805,6 +805,16 @@ class TuningRepository(
           val pendingCount = list.count { it.status == ModerationStatus.PENDING }
           _pendingRequestsCount.value = pendingCount
 
+          // Asynchronously precache photos from moderation requests so they load instantly
+          for (req in list) {
+            val sImg = req.sensorData["imageUrl"] as? String
+            if (!sImg.isNullOrBlank()) ImageUtils.preCacheBase64Image(context, sImg)
+            val sImgs = (req.sensorData["images"] as? List<*>)?.filterIsInstance<String>()
+            sImgs?.forEach { ImageUtils.preCacheBase64Image(context, it) }
+            val cImg = req.sensorData["connectorImageUrl"] as? String
+            if (!cImg.isNullOrBlank()) ImageUtils.preCacheBase64Image(context, cImg)
+          }
+
           if (isAdmin()) {
             val pendingList = list.filter { it.status == ModerationStatus.PENDING }
             for (req in pendingList) {
@@ -1078,6 +1088,20 @@ class TuningRepository(
         request.sensorData.forEach { (k, v) ->
           if (v != null) sensorMap[k] = v
         }
+
+        // Normalize images lists and precache
+        val rawImgs = (sensorMap["images"] as? List<*>)?.filterIsInstance<String>() ?: emptyList()
+        val primaryImg = (sensorMap["imageUrl"] as? String)?.ifBlank { null } ?: rawImgs.firstOrNull() ?: ""
+        val finalImgs = if (rawImgs.isNotEmpty()) rawImgs else if (primaryImg.isNotBlank()) listOf(primaryImg) else emptyList()
+        sensorMap["imageUrl"] = primaryImg
+        sensorMap["images"] = finalImgs
+        val connImg = sensorMap["connectorImageUrl"] as? String ?: ""
+        sensorMap["connectorImageUrl"] = connImg
+
+        if (primaryImg.isNotBlank()) ImageUtils.preCacheBase64Image(context, primaryImg)
+        finalImgs.forEach { ImageUtils.preCacheBase64Image(context, it) }
+        if (connImg.isNotBlank()) ImageUtils.preCacheBase64Image(context, connImg)
+
         sensorMap["id"] = targetId
         sensorMap["createdAt"] = FieldValue.serverTimestamp()
         sensorMap["updatedAt"] = FieldValue.serverTimestamp()
@@ -1097,6 +1121,20 @@ class TuningRepository(
         request.sensorData.forEach { (k, v) ->
           if (v != null) sensorMap[k] = v
         }
+
+        // Normalize images lists and precache
+        val rawImgs = (sensorMap["images"] as? List<*>)?.filterIsInstance<String>() ?: emptyList()
+        val primaryImg = (sensorMap["imageUrl"] as? String)?.ifBlank { null } ?: rawImgs.firstOrNull() ?: ""
+        val finalImgs = if (rawImgs.isNotEmpty()) rawImgs else if (primaryImg.isNotBlank()) listOf(primaryImg) else emptyList()
+        sensorMap["imageUrl"] = primaryImg
+        sensorMap["images"] = finalImgs
+        val connImg = sensorMap["connectorImageUrl"] as? String ?: ""
+        sensorMap["connectorImageUrl"] = connImg
+
+        if (primaryImg.isNotBlank()) ImageUtils.preCacheBase64Image(context, primaryImg)
+        finalImgs.forEach { ImageUtils.preCacheBase64Image(context, it) }
+        if (connImg.isNotBlank()) ImageUtils.preCacheBase64Image(context, connImg)
+
         sensorMap["id"] = targetId
         sensorMap["updatedAt"] = FieldValue.serverTimestamp()
         sensorMap["lastEditedByNick"] = "Zatwierdzone przez Admina ($adminNick)"

@@ -135,9 +135,53 @@ object ImageUtils {
 
   private val modelCache = java.util.concurrent.ConcurrentHashMap<String, Any>(128)
 
+  fun isLikelyBase64(source: String?): Boolean {
+    if (source.isNullOrBlank()) return false
+    val s = source.trim()
+    return s.startsWith("data:image", ignoreCase = true) ||
+           s.startsWith("/9j/", ignoreCase = true) || // JPEG magic header in Base64
+           s.startsWith("iVBOR", ignoreCase = true) || // PNG magic header in Base64
+           (s.length > 200 && !s.startsWith("http://", ignoreCase = true) &&
+            !s.startsWith("https://", ignoreCase = true) &&
+            !s.startsWith("content://", ignoreCase = true) &&
+            !s.startsWith("file://", ignoreCase = true) &&
+            (!s.startsWith("/") || s.startsWith("/9j/")))
+  }
+
+  fun decodeBase64Bytes(raw: String?): ByteArray? {
+    if (raw.isNullOrBlank()) return null
+    val s = raw.trim()
+    val cleanPart = if (s.contains("base64,")) {
+      s.substringAfter("base64,")
+    } else if (s.contains(",")) {
+      s.substringAfter(",")
+    } else {
+      s
+    }.replace("\\s".toRegex(), "").replace(" ", "+").trim()
+
+    if (cleanPart.isEmpty()) return null
+
+    val decodeAttempts = listOf(
+      { Base64.decode(cleanPart, Base64.DEFAULT) },
+      { Base64.decode(cleanPart.replace("-", "+").replace("_", "/"), Base64.DEFAULT) },
+      { Base64.decode(cleanPart, Base64.NO_WRAP) },
+      { Base64.decode(cleanPart, Base64.URL_SAFE) }
+    )
+
+    for (attempt in decodeAttempts) {
+      try {
+        val bytes = attempt()
+        if (bytes != null && bytes.isNotEmpty()) {
+          return bytes
+        }
+      } catch (_: Exception) {}
+    }
+    return null
+  }
+
   fun getFastCacheKey(source: String): String {
-    return if (source.startsWith("data:image", ignoreCase = true)) {
-      "b64_${source.length}_${source.take(64).hashCode().toUInt()}_${source.takeLast(64).hashCode().toUInt()}"
+    return if (isLikelyBase64(source)) {
+      "b64_" + sha256String(source).take(32)
     } else {
       source
     }
@@ -145,7 +189,11 @@ object ImageUtils {
 
   fun preCacheBase64Image(context: Context, source: String): String {
     if (source.isNotBlank()) {
-      getImageModel(context, source)
+      try {
+        getImageModel(context, source)
+      } catch (e: Exception) {
+        Log.w(TAG, "preCacheBase64Image failed: ${e.message}")
+      }
     }
     return source
   }
@@ -166,29 +214,34 @@ object ImageUtils {
       return cached
     }
 
-    val model: Any? = if (trimmed.startsWith("data:image", ignoreCase = true)) {
+    val model: Any? = if (isLikelyBase64(trimmed)) {
       try {
         val cacheFile = File(context.cacheDir, "$FILE_PREFIX$cacheKey.jpg")
         if (cacheFile.exists() && cacheFile.length() > 0) {
           cacheFile
         } else {
-          // Decode synchronously to cache file so Coil can load it immediately
-          val base64Part = if (trimmed.contains("base64,")) {
-            trimmed.substringAfter("base64,")
+          val bytes = decodeBase64Bytes(trimmed)
+          if (bytes != null && bytes.isNotEmpty()) {
+            val tmpFile = File(context.cacheDir, "$FILE_PREFIX$cacheKey.tmp")
+            FileOutputStream(tmpFile).use { it.write(bytes) }
+            if (tmpFile.renameTo(cacheFile)) {
+              cacheFile
+            } else {
+              FileOutputStream(cacheFile).use { it.write(bytes) }
+              tmpFile.delete()
+              cacheFile
+            }
           } else {
-            trimmed.substringAfter(",")
+            trimmed
           }
-          val bytes = Base64.decode(base64Part, Base64.DEFAULT)
-          FileOutputStream(cacheFile).use { it.write(bytes) }
-          cacheFile
         }
       } catch (e: Exception) {
         Log.e(TAG, "Error decoding base64 image", e)
         trimmed
       }
-    } else if (trimmed.startsWith("/")) {
+    } else if (trimmed.startsWith("/") && !trimmed.startsWith("/9j/")) {
       val file = File(trimmed)
-      if (file.exists()) file else null
+      if (file.exists() && file.length() > 0) file else null
     } else {
       trimmed
     }

@@ -19,30 +19,32 @@ class DataUriFetcher(
   private val options: Options
 ) : Fetcher {
 
-  override suspend fun fetch(): FetchResult {
-    val base64Data = if (dataUri.contains("base64,")) {
-      dataUri.substringAfter("base64,")
-    } else {
-      dataUri.substringAfter(",")
-    }
-    val bytes = Base64.decode(base64Data, Base64.DEFAULT)
-    val mimeType = if (dataUri.startsWith("data:")) {
-      dataUri.substringAfter("data:").substringBefore(";").trim()
-    } else {
-      "image/jpeg"
-    }
+  override suspend fun fetch(): FetchResult? {
+    return try {
+      val bytes = ImageUtils.decodeBase64Bytes(dataUri)
+      if (bytes == null || bytes.isEmpty()) return null
 
-    val buffer = Buffer().write(bytes)
-    return SourceResult(
-      source = ImageSource(source = buffer, context = options.context),
-      mimeType = mimeType.ifBlank { "image/jpeg" },
-      dataSource = DataSource.MEMORY
-    )
+      val mimeType = if (dataUri.startsWith("data:")) {
+        dataUri.substringAfter("data:").substringBefore(";").trim()
+      } else {
+        "image/jpeg"
+      }
+
+      val buffer = Buffer().write(bytes)
+      SourceResult(
+        source = ImageSource(source = buffer, context = options.context),
+        mimeType = mimeType.ifBlank { "image/jpeg" },
+        dataSource = DataSource.MEMORY
+      )
+    } catch (e: Exception) {
+      android.util.Log.e("DataUriFetcher", "Failed to fetch data URI photo: ${e.message}")
+      null
+    }
   }
 
   class Factory : Fetcher.Factory<String> {
     override fun create(data: String, options: Options, imageLoader: ImageLoader): Fetcher? {
-      if (data.startsWith("data:image", ignoreCase = true)) {
+      if (ImageUtils.isLikelyBase64(data)) {
         return DataUriFetcher(data, options)
       }
       return null

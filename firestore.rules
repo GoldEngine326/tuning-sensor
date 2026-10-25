@@ -36,7 +36,7 @@ service cloud.firestore {
              (!('partNumber' in data) || (data.partNumber is string && data.partNumber.size() <= 100)) &&
              data.category is string && data.category.size() >= 1 && data.category.size() <= 50 &&
              (!('shortDescription' in data) || (data.shortDescription is string && data.shortDescription.size() <= 500)) &&
-             (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 200000)) &&
+             (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 600000)) &&
              (!('images' in data) || (data.images is list && data.images.size() <= 10)) &&
              (!('vectorIllustrationKey' in data) || (data.vectorIllustrationKey is string && data.vectorIllustrationKey.size() <= 50)) &&
              data.authorNick is string && data.authorNick.size() >= 1 && data.authorNick.size() <= 50 &&
@@ -53,7 +53,7 @@ service cloud.firestore {
              (!('characteristic' in data) || data.characteristic is map) &&
              (!('resistanceCharacteristic' in data) || data.resistanceCharacteristic == null || data.resistanceCharacteristic is map) &&
              (!('isUserAdded' in data) || data.isUserAdded is bool) &&
-             (!('connectorImageUrl' in data) || (data.connectorImageUrl is string && data.connectorImageUrl.size() <= 200000)) &&
+             (!('connectorImageUrl' in data) || (data.connectorImageUrl is string && data.connectorImageUrl.size() <= 600000)) &&
              (!('lastEditedByNick' in data) || data.lastEditedByNick == null || (data.lastEditedByNick is string && data.lastEditedByNick.size() <= 50)) &&
              (!('lastEditedAt' in data) || data.lastEditedAt == null || (data.lastEditedAt is timestamp && data.lastEditedAt <= request.time));
     }
