@@ -141,13 +141,17 @@ fun FullScreenImageViewerDialog(
             ),
           contentAlignment = Alignment.Center
         ) {
-          val imageModel = ImageUtils.getImageModel(context, activeImage)
+          val imageModel = remember(activeImage, context) {
+            ImageUtils.getImageModel(context, activeImage)
+          }
           if (imageModel != null) {
             SubcomposeAsyncImage(
-              model = ImageRequest.Builder(context)
-                .data(imageModel)
-                .crossfade(true)
-                .build(),
+              model = remember(imageModel, context) {
+                ImageRequest.Builder(context)
+                  .data(imageModel)
+                  .crossfade(true)
+                  .build()
+              },
               contentDescription = "Powiększone zdjęcie $title",
               contentScale = ContentScale.Fit,
               modifier = Modifier.fillMaxSize(),

@@ -59,13 +59,17 @@ fun ComponentHeroImage(
     contentAlignment = Alignment.Center
   ) {
     val context = LocalContext.current
-    val imageModel = ImageUtils.getImageModel(context, imageUrl)
+    val imageModel = remember(imageUrl) {
+      ImageUtils.getImageModel(context, imageUrl)
+    }
     if (imageModel != null) {
       SubcomposeAsyncImage(
-        model = ImageRequest.Builder(context)
-          .data(imageModel)
-          .crossfade(true)
-          .build(),
+        model = remember(imageModel, context) {
+          ImageRequest.Builder(context)
+            .data(imageModel)
+            .crossfade(true)
+            .build()
+        },
         contentDescription = "Zdjęcie podzespołu",
         contentScale = ContentScale.Crop,
         modifier = Modifier.fillMaxSize(),
@@ -103,21 +107,28 @@ fun ComponentThumbnail(
     contentAlignment = Alignment.Center
   ) {
     if (imageModel != null) {
-      val imageRequest = remember(imageModel, context) {
-        ImageRequest.Builder(context)
-          .data(imageModel)
-          .size(160, 160)
-          .crossfade(false)
-          .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
-          .diskCachePolicy(coil.request.CachePolicy.ENABLED)
-          .build()
-      }
-
-      AsyncImage(
-        model = imageRequest,
+      SubcomposeAsyncImage(
+        model = remember(imageModel, context) {
+          ImageRequest.Builder(context)
+            .data(imageModel)
+            .crossfade(true)
+            .build()
+        },
         contentDescription = "Zdjęcie podzespołu",
         contentScale = ContentScale.Crop,
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier.fillMaxSize(),
+        loading = {
+          Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(
+              color = TuningRed,
+              strokeWidth = 1.5.dp,
+              modifier = Modifier.size(16.dp)
+            )
+          }
+        },
+        error = {
+          VectorIllustration(vectorKey = vectorKey)
+        }
       )
     } else {
       VectorIllustration(vectorKey = vectorKey)

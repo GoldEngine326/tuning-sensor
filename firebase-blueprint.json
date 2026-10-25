@@ -125,6 +125,30 @@
         }
       },
       "required": ["id", "name", "category", "authorId", "createdAt", "updatedAt"]
+    },
+    "ModerationRequest": {
+      "title": "ModerationRequest",
+      "description": "User requests for adding, updating, or deleting sensor specifications pending administrator approval",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["ADD", "EDIT", "DELETE"] },
+        "status": { "type": "string", "enum": ["PENDING", "APPROVED", "REJECTED"] },
+        "targetSensorId": { "type": "string" },
+        "targetSensorName": { "type": "string" },
+        "requesterId": { "type": "string" },
+        "requesterNick": { "type": "string" },
+        "requesterEmail": { "type": "string" },
+        "requestReason": { "type": "string" },
+        "sensorData": { "type": "object" },
+        "originalSensorData": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "reviewedAt": { "type": "string", "format": "date-time" },
+        "reviewerNick": { "type": "string" },
+        "reviewerEmail": { "type": "string" },
+        "reviewNotes": { "type": "string" }
+      },
+      "required": ["id", "type", "status", "targetSensorName", "requesterId", "requesterNick", "createdAt"]
     }
   },
   "firestore": {
@@ -139,6 +163,12 @@
         "$ref": "#/entities/Sensor"
       },
       "description": "Shared community tuning sensor catalog"
+    },
+    "/moderation_requests/{requestId}": {
+      "schema": {
+        "$ref": "#/entities/ModerationRequest"
+      },
+      "description": "Queue of user submissions awaiting administrator approval"
     }
   }
 }

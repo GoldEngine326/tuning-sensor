@@ -13,6 +13,10 @@ import com.example.model.DeadTimeTable
 import com.example.model.PinInfo
 import com.example.model.PinType
 import com.example.model.TuningComponent
+import com.example.model.ModerationRequest
+import com.example.model.ModerationStatus
+import com.example.model.ModerationType
+import com.example.util.NotificationHelper
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
@@ -49,10 +53,27 @@ class TuningRepository(
   private val _userNick = MutableStateFlow(getUserNickInternal())
   val userNick: StateFlow<String> = _userNick.asStateFlow()
 
+  val currentUserEmail: String?
+    get() = auth.currentUser?.email
+
+  fun isAdmin(): Boolean {
+    val email = auth.currentUser?.email?.trim()?.lowercase() ?: return false
+    return email == "yetigiusz@gmail.com"
+  }
+
+  private val _moderationRequests = MutableStateFlow<List<ModerationRequest>>(emptyList())
+  val moderationRequests: StateFlow<List<ModerationRequest>> = _moderationRequests.asStateFlow()
+
+  private val _pendingRequestsCount = MutableStateFlow<Int>(0)
+  val pendingRequestsCount: StateFlow<Int> = _pendingRequestsCount.asStateFlow()
+
   private var snapshotListener: ListenerRegistration? = null
+  private var moderationListener: ListenerRegistration? = null
+  private val notifiedRequestIds = mutableSetOf<String>()
 
   init {
     startListeningToSensors()
+    startListeningToModerationRequests()
   }
 
   private fun requireUserId(): String {
@@ -682,7 +703,7 @@ class TuningRepository(
       importantNotes = data["importantNotes"] as? String ?: "",
       authorNick = data["authorNick"] as? String ?: "Tuner",
       authorId = data["authorId"] as? String ?: "community",
-      connectorImageUrl = data["connectorImageUrl"] as? String ?: "",
+      connectorImageUrl = ImageUtils.preCacheBase64Image(context, data["connectorImageUrl"] as? String ?: ""),
       createdAtMillis = createdAtTimestamp?.toDate()?.time ?: System.currentTimeMillis(),
       lastEditedByNick = data["lastEditedByNick"] as? String,
       lastEditedAtMillis = lastEditedAtTimestamp?.toDate()?.time,
@@ -758,6 +779,411 @@ class TuningRepository(
       outputLabel = map["outputLabel"] as? String ?: "Wyjście",
       points = points,
       formulaOrNotes = map["formulaOrNotes"] as? String ?: ""
+    )
+  }
+
+  fun startListeningToModerationRequests() {
+    moderationListener?.remove()
+    moderationListener = db.collection("moderation_requests")
+      .addSnapshotListener { snapshot, error ->
+        if (error != null) {
+          Log.w("TuningRepository", "Błąd pobierania wniosków moderacji: ${error.message}")
+          return@addSnapshotListener
+        }
+        if (snapshot != null) {
+          val list = snapshot.documents.mapNotNull { doc ->
+            try {
+              val data = doc.data ?: return@mapNotNull null
+              parseModerationRequest(doc.id, data)
+            } catch (e: Exception) {
+              Log.e("TuningRepository", "Błąd parsowania wniosku moderacji ${doc.id}", e)
+              null
+            }
+          }.sortedByDescending { it.createdAtMillis }
+
+          _moderationRequests.value = list
+          val pendingCount = list.count { it.status == ModerationStatus.PENDING }
+          _pendingRequestsCount.value = pendingCount
+
+          if (isAdmin()) {
+            val pendingList = list.filter { it.status == ModerationStatus.PENDING }
+            for (req in pendingList) {
+              if (!notifiedRequestIds.contains(req.id)) {
+                notifiedRequestIds.add(req.id)
+                NotificationHelper.showModerationNotification(context, req)
+              }
+            }
+          }
+        }
+      }
+  }
+
+  fun submitAddProposal(
+    name: String,
+    partNumber: String,
+    category: ComponentCategory,
+    shortDescription: String,
+    imageUrl: String,
+    images: List<String> = emptyList(),
+    pins: List<PinInfo>,
+    characteristic: CharacteristicInfo,
+    resistanceCharacteristic: CharacteristicInfo?,
+    pullupRequired: Boolean,
+    pullupRecommendedValue: String,
+    pullupNote: String,
+    importantNotes: String,
+    connectorImageUrl: String = "",
+    deadTimeTables: List<DeadTimeTable> = emptyList(),
+    flowRateCc: Double? = null,
+    flowPressureBar: Double? = null,
+    innerDiameterMm: Double? = null,
+    outerDiameterMm: Double? = null,
+    boltSpacingWidthMm: Double? = null,
+    boltSpacingHeightMm: Double? = null,
+    boltDiagonal1Mm: Double? = null,
+    boltDiagonal2Mm: Double? = null,
+    injectorImpedance: String = "",
+    ecuOutputsCount: String = "",
+    ecuBoardDimensions: String = ""
+  ): String {
+    val uid = requireUserId()
+    val newId = "sensor_" + UUID.randomUUID().toString().replace("-", "").take(12)
+    val author = _userNick.value
+
+    val finalImages = if (images.isNotEmpty()) images else if (imageUrl.isNotBlank()) listOf(imageUrl) else emptyList()
+    val finalPrimaryImage = finalImages.firstOrNull() ?: imageUrl.trim()
+
+    val draftComp = TuningComponent(
+      id = newId,
+      name = name.trim(),
+      partNumber = partNumber.trim(),
+      category = category,
+      shortDescription = shortDescription.trim(),
+      imageUrl = finalPrimaryImage,
+      images = finalImages,
+      connectorImageUrl = connectorImageUrl.trim(),
+      vectorIllustrationKey = when (category) {
+        ComponentCategory.COILS -> "vw_coils"
+        ComponentCategory.MAP_SENSOR -> "map_3b"
+        ComponentCategory.ECU -> "uaefi"
+        ComponentCategory.MODULES -> "uaefi"
+        ComponentCategory.INJECTORS -> "vw_coils"
+        ComponentCategory.TEMP_SENSOR -> "bosch_iat"
+        ComponentCategory.LAMBDA -> "lsu_49"
+        ComponentCategory.THROTTLE -> "throttle"
+        ComponentCategory.FUEL_PRESSURE -> "map_3b"
+        ComponentCategory.OIL_PRESSURE -> "map_3b"
+        else -> "map_3b"
+      },
+      pinout = pins,
+      characteristic = characteristic,
+      resistanceCharacteristic = resistanceCharacteristic,
+      pullupRequired = pullupRequired,
+      pullupRecommendedValue = pullupRecommendedValue.trim(),
+      pullupNote = pullupNote.trim(),
+      importantNotes = importantNotes.trim(),
+      authorNick = author,
+      authorId = uid,
+      createdAtMillis = System.currentTimeMillis(),
+      rating = 5.0f,
+      ratingVotesCount = 1,
+      userVote = 5,
+      isUserAdded = true,
+      deadTimeTables = deadTimeTables,
+      flowRateCc = flowRateCc,
+      flowPressureBar = flowPressureBar,
+      innerDiameterMm = innerDiameterMm,
+      outerDiameterMm = outerDiameterMm,
+      boltSpacingWidthMm = boltSpacingWidthMm,
+      boltSpacingHeightMm = boltSpacingHeightMm,
+      boltDiagonal1Mm = boltDiagonal1Mm,
+      boltDiagonal2Mm = boltDiagonal2Mm,
+      injectorImpedance = injectorImpedance.trim(),
+      ecuOutputsCount = ecuOutputsCount.trim(),
+      ecuBoardDimensions = ecuBoardDimensions.trim()
+    )
+
+    val reqId = "req_" + UUID.randomUUID().toString().replace("-", "").take(12)
+    val payload = createFirestorePayload(draftComp, uid, isCreate = true).toMutableMap()
+    payload.remove("createdAt")
+    payload.remove("updatedAt")
+
+    val reqPayload = hashMapOf<String, Any>(
+      "id" to reqId,
+      "type" to ModerationType.ADD.name,
+      "status" to ModerationStatus.PENDING.name,
+      "targetSensorId" to newId,
+      "targetSensorName" to draftComp.name,
+      "requesterId" to uid,
+      "requesterNick" to author,
+      "requesterEmail" to (auth.currentUser?.email ?: ""),
+      "requestReason" to "Propozycja dodania nowego czujnika do bazy",
+      "sensorData" to payload,
+      "createdAt" to FieldValue.serverTimestamp()
+    )
+
+    db.collection("moderation_requests").document(reqId).set(reqPayload)
+      .addOnFailureListener { exception ->
+        handleFirestoreError(exception, OperationType.CREATE, "moderation_requests/$reqId")
+      }
+
+    return reqId
+  }
+
+  fun submitEditProposal(
+    id: String,
+    name: String,
+    partNumber: String,
+    category: ComponentCategory,
+    shortDescription: String,
+    imageUrl: String = "",
+    images: List<String> = emptyList(),
+    pinout: List<PinInfo>,
+    characteristic: CharacteristicInfo,
+    resistanceCharacteristic: CharacteristicInfo? = null,
+    pullupRequired: Boolean,
+    pullupRecommendedValue: String,
+    pullupNote: String,
+    importantNotes: String,
+    connectorImageUrl: String = "",
+    deadTimeTables: List<DeadTimeTable> = emptyList(),
+    flowRateCc: Double? = null,
+    flowPressureBar: Double? = null,
+    innerDiameterMm: Double? = null,
+    outerDiameterMm: Double? = null,
+    boltSpacingWidthMm: Double? = null,
+    boltSpacingHeightMm: Double? = null,
+    boltDiagonal1Mm: Double? = null,
+    boltDiagonal2Mm: Double? = null,
+    injectorImpedance: String = "",
+    ecuOutputsCount: String = "",
+    ecuBoardDimensions: String = "",
+    editReason: String = ""
+  ): String {
+    val uid = requireUserId()
+    val author = _userNick.value
+    val original = _components.value.find { it.id == id }
+
+    val finalImages = if (images.isNotEmpty()) images else if (imageUrl.isNotBlank()) listOf(imageUrl) else emptyList()
+    val finalPrimaryImage = finalImages.firstOrNull() ?: imageUrl.trim()
+
+    val updatedComp = TuningComponent(
+      id = id,
+      name = name.trim(),
+      partNumber = partNumber.trim(),
+      category = category,
+      shortDescription = shortDescription.trim(),
+      imageUrl = finalPrimaryImage,
+      images = finalImages,
+      connectorImageUrl = connectorImageUrl.trim(),
+      vectorIllustrationKey = original?.vectorIllustrationKey ?: "map_3b",
+      pinout = pinout,
+      characteristic = characteristic,
+      resistanceCharacteristic = resistanceCharacteristic,
+      pullupRequired = pullupRequired,
+      pullupRecommendedValue = pullupRecommendedValue.trim(),
+      pullupNote = pullupNote.trim(),
+      importantNotes = importantNotes.trim(),
+      authorNick = original?.authorNick ?: author,
+      authorId = original?.authorId ?: uid,
+      createdAtMillis = original?.createdAtMillis ?: System.currentTimeMillis(),
+      rating = original?.rating ?: 5.0f,
+      ratingVotesCount = original?.ratingVotesCount ?: 1,
+      userVote = original?.userVote,
+      isUserAdded = original?.isUserAdded ?: true,
+      deadTimeTables = deadTimeTables,
+      flowRateCc = flowRateCc,
+      flowPressureBar = flowPressureBar,
+      innerDiameterMm = innerDiameterMm,
+      outerDiameterMm = outerDiameterMm,
+      boltSpacingWidthMm = boltSpacingWidthMm,
+      boltSpacingHeightMm = boltSpacingHeightMm,
+      boltDiagonal1Mm = boltDiagonal1Mm,
+      boltDiagonal2Mm = boltDiagonal2Mm,
+      injectorImpedance = injectorImpedance.trim(),
+      ecuOutputsCount = ecuOutputsCount.trim(),
+      ecuBoardDimensions = ecuBoardDimensions.trim()
+    )
+
+    val reqId = "req_" + UUID.randomUUID().toString().replace("-", "").take(12)
+    val updatedPayload = createFirestorePayload(updatedComp, updatedComp.authorId, isCreate = false).toMutableMap()
+    updatedPayload.remove("createdAt")
+    updatedPayload.remove("updatedAt")
+
+    val reqPayload = hashMapOf<String, Any>(
+      "id" to reqId,
+      "type" to ModerationType.EDIT.name,
+      "status" to ModerationStatus.PENDING.name,
+      "targetSensorId" to id,
+      "targetSensorName" to updatedComp.name,
+      "requesterId" to uid,
+      "requesterNick" to author,
+      "requesterEmail" to (auth.currentUser?.email ?: ""),
+      "requestReason" to editReason.ifBlank { "Propozycja aktualizacji danych czujnika" },
+      "sensorData" to updatedPayload,
+      "createdAt" to FieldValue.serverTimestamp()
+    )
+
+    db.collection("moderation_requests").document(reqId).set(reqPayload)
+      .addOnFailureListener { exception ->
+        handleFirestoreError(exception, OperationType.CREATE, "moderation_requests/$reqId")
+      }
+
+    return reqId
+  }
+
+  fun submitDeleteProposal(
+    component: TuningComponent,
+    deleteReason: String
+  ): String {
+    val uid = requireUserId()
+    val author = _userNick.value
+    val reqId = "req_" + UUID.randomUUID().toString().replace("-", "").take(12)
+
+    val reqPayload = hashMapOf<String, Any>(
+      "id" to reqId,
+      "type" to ModerationType.DELETE.name,
+      "status" to ModerationStatus.PENDING.name,
+      "targetSensorId" to component.id,
+      "targetSensorName" to component.name,
+      "requesterId" to uid,
+      "requesterNick" to author,
+      "requesterEmail" to (auth.currentUser?.email ?: ""),
+      "requestReason" to deleteReason.ifBlank { "Prośba o usunięcie z bazy" },
+      "createdAt" to FieldValue.serverTimestamp()
+    )
+
+    db.collection("moderation_requests").document(reqId).set(reqPayload)
+      .addOnFailureListener { exception ->
+        handleFirestoreError(exception, OperationType.CREATE, "moderation_requests/$reqId")
+      }
+
+    return reqId
+  }
+
+  fun approveModerationRequest(
+    request: ModerationRequest,
+    adminNick: String,
+    onComplete: ((Boolean) -> Unit)? = null
+  ) {
+    if (!isAdmin()) {
+      onComplete?.invoke(false)
+      return
+    }
+
+    val targetId = request.targetSensorId
+    when (request.type) {
+      ModerationType.ADD -> {
+        val sensorMap = HashMap<String, Any>()
+        request.sensorData.forEach { (k, v) ->
+          if (v != null) sensorMap[k] = v
+        }
+        sensorMap["id"] = targetId
+        sensorMap["createdAt"] = FieldValue.serverTimestamp()
+        sensorMap["updatedAt"] = FieldValue.serverTimestamp()
+        sensorMap["lastEditedByNick"] = "Zatwierdzone przez Admina ($adminNick)"
+        sensorMap["lastEditedAt"] = FieldValue.serverTimestamp()
+
+        db.collection("sensors").document(targetId).set(sensorMap)
+          .addOnSuccessListener {
+            markRequestStatus(request.id, ModerationStatus.APPROVED, adminNick, "Zatwierdzono i dodano do bazy", onComplete)
+          }
+          .addOnFailureListener {
+            onComplete?.invoke(false)
+          }
+      }
+      ModerationType.EDIT -> {
+        val sensorMap = HashMap<String, Any>()
+        request.sensorData.forEach { (k, v) ->
+          if (v != null) sensorMap[k] = v
+        }
+        sensorMap["id"] = targetId
+        sensorMap["updatedAt"] = FieldValue.serverTimestamp()
+        sensorMap["lastEditedByNick"] = "Zatwierdzone przez Admina ($adminNick)"
+        sensorMap["lastEditedAt"] = FieldValue.serverTimestamp()
+
+        db.collection("sensors").document(targetId).update(sensorMap)
+          .addOnSuccessListener {
+            markRequestStatus(request.id, ModerationStatus.APPROVED, adminNick, "Zatwierdzono modyfikację", onComplete)
+          }
+          .addOnFailureListener {
+            onComplete?.invoke(false)
+          }
+      }
+      ModerationType.DELETE -> {
+        db.collection("sensors").document(targetId).delete()
+          .addOnSuccessListener {
+            markRequestStatus(request.id, ModerationStatus.APPROVED, adminNick, "Zatwierdzono usunięcie", onComplete)
+          }
+          .addOnFailureListener {
+            onComplete?.invoke(false)
+          }
+      }
+    }
+  }
+
+  fun rejectModerationRequest(
+    request: ModerationRequest,
+    adminNick: String,
+    reason: String,
+    onComplete: ((Boolean) -> Unit)? = null
+  ) {
+    if (!isAdmin()) {
+      onComplete?.invoke(false)
+      return
+    }
+    markRequestStatus(request.id, ModerationStatus.REJECTED, adminNick, reason, onComplete)
+  }
+
+  private fun markRequestStatus(
+    requestId: String,
+    status: ModerationStatus,
+    reviewerNick: String,
+    reviewNotes: String,
+    onComplete: ((Boolean) -> Unit)?
+  ) {
+    val updateData = mapOf(
+      "status" to status.name,
+      "reviewedAt" to FieldValue.serverTimestamp(),
+      "reviewerNick" to reviewerNick,
+      "reviewerEmail" to (auth.currentUser?.email ?: ""),
+      "reviewNotes" to reviewNotes
+    )
+    db.collection("moderation_requests").document(requestId).update(updateData)
+      .addOnSuccessListener {
+        onComplete?.invoke(true)
+      }
+      .addOnFailureListener {
+        onComplete?.invoke(false)
+      }
+  }
+
+  @Suppress("UNCHECKED_CAST")
+  private fun parseModerationRequest(docId: String, data: Map<String, Any>): ModerationRequest? {
+    val typeStr = data["type"] as? String ?: return null
+    val statusStr = data["status"] as? String ?: "PENDING"
+    val type = try { ModerationType.valueOf(typeStr) } catch (_: Exception) { ModerationType.ADD }
+    val status = try { ModerationStatus.valueOf(statusStr) } catch (_: Exception) { ModerationStatus.PENDING }
+    val createdAtTimestamp = data["createdAt"] as? Timestamp
+    val reviewedAtTimestamp = data["reviewedAt"] as? Timestamp
+
+    return ModerationRequest(
+      id = docId,
+      type = type,
+      status = status,
+      targetSensorId = data["targetSensorId"] as? String ?: "",
+      targetSensorName = data["targetSensorName"] as? String ?: "",
+      requesterId = data["requesterId"] as? String ?: "",
+      requesterNick = data["requesterNick"] as? String ?: "Tuner",
+      requesterEmail = data["requesterEmail"] as? String ?: "",
+      requestReason = data["requestReason"] as? String ?: "",
+      sensorData = (data["sensorData"] as? Map<*, *>)?.filterKeys { it is String } as? Map<String, Any?> ?: emptyMap(),
+      originalSensorData = (data["originalSensorData"] as? Map<*, *>)?.filterKeys { it is String } as? Map<String, Any?> ?: emptyMap(),
+      createdAtMillis = createdAtTimestamp?.toDate()?.time ?: System.currentTimeMillis(),
+      reviewedAtMillis = reviewedAtTimestamp?.toDate()?.time,
+      reviewerNick = data["reviewerNick"] as? String,
+      reviewerEmail = data["reviewerEmail"] as? String,
+      reviewNotes = data["reviewNotes"] as? String
     )
   }
 }

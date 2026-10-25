@@ -186,6 +186,7 @@ fun AddComponentDialog(
     ecuBoardDimensions: String
   ) -> Unit,
   onDelete: (() -> Unit)? = null,
+  isAdmin: Boolean = false,
   modifier: Modifier = Modifier
 ) {
   val isEditing = existingComponent != null
@@ -906,7 +907,11 @@ fun AddComponentDialog(
             )
             Spacer(Modifier.width(6.dp))
             Text(
-              text = if (isEditing) "Zapisz zmiany" else "Opublikuj",
+              text = if (isAdmin) {
+                if (isEditing) "Zapisz (Admin)" else "Opublikuj (Admin)"
+              } else {
+                if (isEditing) "Wyślij modyfikację do Admina" else "Wyślij do zatwierdzenia"
+              },
               fontWeight = FontWeight.Bold,
               fontSize = 12.sp,
               color = if (isEditing) Color.Black else Color.White
@@ -945,9 +950,28 @@ fun AddComponentDialog(
             .padding(10.dp)
         ) {
           Text(
-            text = "Edytujesz wpis w bazie społecznościowej jako @$userNick. Twoje poprawki zostaną natychmiast zapisane dla wszystkich użytkowników.",
+            text = if (isAdmin) {
+              "Edytujesz wpis w bazie jako Administrator @$userNick. Twoje poprawki zostaną natychmiast zapisane w chmurze Firestore dla wszystkich."
+            } else {
+              "Edytujesz wpis jako @$userNick. Twoja propozycja zmian zostanie przesłana do zatwierdzenia przez Administratora (yetigiusz@gmail.com)."
+            },
             fontSize = 12.sp,
             color = TunerAmber
+          )
+        }
+        Spacer(Modifier.height(14.dp))
+      } else if (!isAdmin) {
+        Box(
+          modifier = Modifier
+            .fillMaxWidth()
+            .background(DarkSurfaceVariant, RoundedCornerShape(8.dp))
+            .border(1.dp, TunerCyan.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+            .padding(10.dp)
+        ) {
+          Text(
+            text = "Dodajesz propozycję podzespołu jako @$userNick. Po przesłaniu Administrator (yetigiusz@gmail.com) otrzyma powiadomienie i zatwierdzi dodanie do bazy.",
+            fontSize = 12.sp,
+            color = TunerCyan
           )
         }
         Spacer(Modifier.height(14.dp))

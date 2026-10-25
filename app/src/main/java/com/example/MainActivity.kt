@@ -22,11 +22,17 @@ import com.example.model.ComponentCategory
 import com.example.model.DeadTimeTable
 import com.example.model.PinInfo
 import com.example.model.TuningComponent
+import com.example.model.ModerationRequest
 import com.example.ui.screens.AddComponentDialog
 import com.example.ui.screens.DetailScreen
 import com.example.ui.screens.HomeScreen
+import com.example.ui.screens.ModerationScreen
+import com.example.ui.screens.MySubmissionsDialog
 import com.example.ui.screens.NicknameDialog
+import com.example.util.NotificationHelper
+import android.app.Activity
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalContext
@@ -48,6 +54,7 @@ sealed class AppScreen {
   data class Detail(val componentId: String) : AppScreen()
   data object Add : AppScreen()
   data class Edit(val componentId: String) : AppScreen()
+  data object Moderation : AppScreen()
 }
 
 class TuningViewModel(private val repository: TuningRepository) : ViewModel() {
@@ -183,6 +190,102 @@ class TuningViewModel(private val repository: TuningRepository) : ViewModel() {
   fun deleteComponent(id: String): Boolean {
     return repository.deleteComponent(id)
   }
+
+  val moderationRequests = repository.moderationRequests
+  val pendingRequestsCount = repository.pendingRequestsCount
+
+  fun isAdmin(): Boolean = repository.isAdmin()
+  val currentUserEmail: String? get() = repository.currentUserEmail
+
+  fun submitAddProposal(
+    name: String,
+    partNumber: String,
+    category: ComponentCategory,
+    shortDescription: String,
+    imageUrl: String,
+    images: List<String> = emptyList(),
+    pins: List<PinInfo>,
+    characteristic: CharacteristicInfo,
+    resistanceCharacteristic: CharacteristicInfo?,
+    pullupRequired: Boolean,
+    pullupRecommendedValue: String,
+    pullupNote: String,
+    importantNotes: String,
+    connectorImageUrl: String = "",
+    deadTimeTables: List<DeadTimeTable> = emptyList(),
+    flowRateCc: Double? = null,
+    flowPressureBar: Double? = null,
+    innerDiameterMm: Double? = null,
+    outerDiameterMm: Double? = null,
+    boltSpacingWidthMm: Double? = null,
+    boltSpacingHeightMm: Double? = null,
+    boltDiagonal1Mm: Double? = null,
+    boltDiagonal2Mm: Double? = null,
+    injectorImpedance: String = "",
+    ecuOutputsCount: String = "",
+    ecuBoardDimensions: String = ""
+  ): String {
+    return repository.submitAddProposal(
+      name, partNumber, category, shortDescription, imageUrl, images, pins,
+      characteristic, resistanceCharacteristic, pullupRequired, pullupRecommendedValue,
+      pullupNote, importantNotes, connectorImageUrl, deadTimeTables, flowRateCc,
+      flowPressureBar, innerDiameterMm, outerDiameterMm, boltSpacingWidthMm,
+      boltSpacingHeightMm, boltDiagonal1Mm, boltDiagonal2Mm, injectorImpedance,
+      ecuOutputsCount, ecuBoardDimensions
+    )
+  }
+
+  fun submitEditProposal(
+    id: String,
+    name: String,
+    partNumber: String,
+    category: ComponentCategory,
+    shortDescription: String,
+    imageUrl: String = "",
+    images: List<String> = emptyList(),
+    pins: List<PinInfo>,
+    characteristic: CharacteristicInfo,
+    resistanceCharacteristic: CharacteristicInfo? = null,
+    pullupRequired: Boolean,
+    pullupRecommendedValue: String,
+    pullupNote: String,
+    importantNotes: String,
+    connectorImageUrl: String = "",
+    deadTimeTables: List<DeadTimeTable> = emptyList(),
+    flowRateCc: Double? = null,
+    flowPressureBar: Double? = null,
+    innerDiameterMm: Double? = null,
+    outerDiameterMm: Double? = null,
+    boltSpacingWidthMm: Double? = null,
+    boltSpacingHeightMm: Double? = null,
+    boltDiagonal1Mm: Double? = null,
+    boltDiagonal2Mm: Double? = null,
+    injectorImpedance: String = "",
+    ecuOutputsCount: String = "",
+    ecuBoardDimensions: String = "",
+    editReason: String = ""
+  ): String {
+    return repository.submitEditProposal(
+      id, name, partNumber, category, shortDescription, imageUrl, images, pins,
+      characteristic, resistanceCharacteristic, pullupRequired, pullupRecommendedValue,
+      pullupNote, importantNotes, connectorImageUrl, deadTimeTables, flowRateCc,
+      flowPressureBar, innerDiameterMm, outerDiameterMm, boltSpacingWidthMm,
+      boltSpacingHeightMm, boltDiagonal1Mm, boltDiagonal2Mm, injectorImpedance,
+      ecuOutputsCount, ecuBoardDimensions, editReason
+    )
+  }
+
+  fun submitDeleteProposal(component: TuningComponent, reason: String): String {
+    return repository.submitDeleteProposal(component, reason)
+  }
+
+  fun approveModerationRequest(request: ModerationRequest, adminNick: String, onComplete: ((Boolean) -> Unit)? = null) {
+    repository.approveModerationRequest(request, adminNick, onComplete)
+  }
+
+  fun rejectModerationRequest(request: ModerationRequest, adminNick: String, reason: String, onComplete: ((Boolean) -> Unit)? = null) {
+    repository.rejectModerationRequest(request, adminNick, reason, onComplete)
+  }
 }
 
 class TuningViewModelFactory(private val repository: TuningRepository) :
@@ -296,9 +399,23 @@ fun TuningAppContent(
   val context = LocalContext.current
   val components by viewModel.components.collectAsState()
   val userNick by viewModel.userNick.collectAsState()
+  val moderationRequests by viewModel.moderationRequests.collectAsState()
+  val pendingRequestsCount by viewModel.pendingRequestsCount.collectAsState()
+  val isAdmin = viewModel.isAdmin()
+  var showMySubmissionsDialog by remember { mutableStateOf(false) }
 
   var currentScreen by remember { mutableStateOf<AppScreen>(AppScreen.Home) }
   var showNickDialog by remember { mutableStateOf(false) }
+
+  val activity = context as? Activity
+  val openModerationFromIntent = remember {
+    activity?.intent?.getBooleanExtra(NotificationHelper.EXTRA_NAVIGATE_TO, false) == true
+  }
+  LaunchedEffect(openModerationFromIntent, isAdmin) {
+    if (openModerationFromIntent && isAdmin) {
+      currentScreen = AppScreen.Moderation
+    }
+  }
 
   // GitHub Auto-Update States
   val coroutineScope = rememberCoroutineScope()
@@ -336,6 +453,37 @@ fun TuningAppContent(
           showNickDialog = true
         },
         onSignOut = onSignOut,
+        isAdmin = isAdmin,
+        pendingRequestsCount = pendingRequestsCount,
+        onOpenModeration = { currentScreen = AppScreen.Moderation },
+        onOpenMySubmissions = { showMySubmissionsDialog = true },
+        modifier = Modifier.fillMaxSize()
+      )
+    }
+
+    is AppScreen.Moderation -> {
+      ModerationScreen(
+        requests = moderationRequests,
+        adminNick = userNick,
+        onApprove = { req ->
+          viewModel.approveModerationRequest(req, userNick) { success ->
+            android.widget.Toast.makeText(
+              context,
+              if (success) "Zatwierdzono i zastosowano zmiany w bazie Firestore!" else "Błąd podczas zatwierdzania wniosku",
+              android.widget.Toast.LENGTH_SHORT
+            ).show()
+          }
+        },
+        onReject = { req, reason ->
+          viewModel.rejectModerationRequest(req, userNick, reason) { success ->
+            android.widget.Toast.makeText(
+              context,
+              if (success) "Odrzucono wniosek użytkownika" else "Błąd podczas odrzucania wniosku",
+              android.widget.Toast.LENGTH_SHORT
+            ).show()
+          }
+        },
+        onBack = { currentScreen = AppScreen.Home },
         modifier = Modifier.fillMaxSize()
       )
     }
@@ -349,12 +497,22 @@ fun TuningAppContent(
           onEditClick = { comp ->
             currentScreen = AppScreen.Edit(comp.id)
           },
-          onDelete = { comp ->
+          onDelete = if (isAdmin) { comp ->
             viewModel.deleteComponent(comp.id)
             android.widget.Toast.makeText(
               context,
               "Usunięto czujnik z bazy!",
               android.widget.Toast.LENGTH_SHORT
+            ).show()
+            currentScreen = AppScreen.Home
+          } else null,
+          isAdmin = isAdmin,
+          onRequestDelete = { comp, reason ->
+            viewModel.submitDeleteProposal(comp, reason)
+            android.widget.Toast.makeText(
+              context,
+              "Wniosek o usunięcie został przesłany do Administratora (yetigiusz@gmail.com)!",
+              android.widget.Toast.LENGTH_LONG
             ).show()
             currentScreen = AppScreen.Home
           },
@@ -378,59 +536,11 @@ fun TuningAppContent(
         AddComponentDialog(
           userNick = userNick,
           existingComponent = null,
+          isAdmin = isAdmin,
           onDismiss = { currentScreen = AppScreen.Home },
           onSave = { name, partNumber, category, shortDesc, imgUrl, imgs, pins, char, resChar, pullupReq, pullupVal, pullupNote, notes, connImg, deadTimeTables, flowRateCc, flowPressureBar, innerDia, outerDia, boltW, boltH, boltD1, boltD2, injImp, ecuOuts, ecuDim ->
-            val created = viewModel.addComponent(
-              name = name,
-              partNumber = partNumber,
-              category = category,
-              shortDescription = shortDesc,
-              imageUrl = imgUrl,
-              images = imgs,
-              pins = pins,
-              characteristic = char,
-              resistanceCharacteristic = resChar,
-              pullupRequired = pullupReq,
-              pullupRecommendedValue = pullupVal,
-              pullupNote = pullupNote,
-              importantNotes = notes,
-              connectorImageUrl = connImg,
-              deadTimeTables = deadTimeTables,
-              flowRateCc = flowRateCc,
-              flowPressureBar = flowPressureBar,
-              innerDiameterMm = innerDia,
-              outerDiameterMm = outerDia,
-              boltSpacingWidthMm = boltW,
-              boltSpacingHeightMm = boltH,
-              boltDiagonal1Mm = boltD1,
-              boltDiagonal2Mm = boltD2,
-              injectorImpedance = injImp,
-              ecuOutputsCount = ecuOuts,
-              ecuBoardDimensions = ecuDim
-            )
-            android.widget.Toast.makeText(
-              context,
-              "Pomyślnie zapisano w chmurze Firestore!",
-              android.widget.Toast.LENGTH_SHORT
-            ).show()
-            currentScreen = AppScreen.Detail(created.id)
-          },
-          modifier = Modifier.fillMaxSize()
-        )
-      }
-    }
-
-    is AppScreen.Edit -> {
-      val component = components.find { it.id == screen.componentId }
-      if (component != null) {
-        key(component.id) {
-          AddComponentDialog(
-            userNick = userNick,
-            existingComponent = component,
-            onDismiss = { currentScreen = AppScreen.Detail(component.id) },
-            onSave = { name, partNumber, category, shortDesc, imgUrl, imgs, pins, char, resChar, pullupReq, pullupVal, pullupNote, notes, connImg, deadTimeTables, flowRateCc, flowPressureBar, innerDia, outerDia, boltW, boltH, boltD1, boltD2, injImp, ecuOuts, ecuDim ->
-              viewModel.updateComponent(
-                id = component.id,
+            if (isAdmin) {
+              val created = viewModel.addComponent(
                 name = name,
                 partNumber = partNumber,
                 category = category,
@@ -460,20 +570,148 @@ fun TuningAppContent(
               )
               android.widget.Toast.makeText(
                 context,
-                "Zaktualizowano w chmurze Firestore!",
+                "Pomyślnie zapisano w chmurze Firestore!",
                 android.widget.Toast.LENGTH_SHORT
               ).show()
-              currentScreen = AppScreen.Detail(component.id)
-            },
-            onDelete = {
-              viewModel.deleteComponent(component.id)
+              currentScreen = AppScreen.Detail(created.id)
+            } else {
+              viewModel.submitAddProposal(
+                name = name,
+                partNumber = partNumber,
+                category = category,
+                shortDescription = shortDesc,
+                imageUrl = imgUrl,
+                images = imgs,
+                pins = pins,
+                characteristic = char,
+                resistanceCharacteristic = resChar,
+                pullupRequired = pullupReq,
+                pullupRecommendedValue = pullupVal,
+                pullupNote = pullupNote,
+                importantNotes = notes,
+                connectorImageUrl = connImg,
+                deadTimeTables = deadTimeTables,
+                flowRateCc = flowRateCc,
+                flowPressureBar = flowPressureBar,
+                innerDiameterMm = innerDia,
+                outerDiameterMm = outerDia,
+                boltSpacingWidthMm = boltW,
+                boltSpacingHeightMm = boltH,
+                boltDiagonal1Mm = boltD1,
+                boltDiagonal2Mm = boltD2,
+                injectorImpedance = injImp,
+                ecuOutputsCount = ecuOuts,
+                ecuBoardDimensions = ecuDim
+              )
               android.widget.Toast.makeText(
                 context,
-                "Wpis został usunięty z chmury!",
-                android.widget.Toast.LENGTH_SHORT
+                "Propozycja czujnika została przesłana do zatwierdzenia przez Administratora (yetigiusz@gmail.com)!",
+                android.widget.Toast.LENGTH_LONG
               ).show()
               currentScreen = AppScreen.Home
+            }
+          },
+          modifier = Modifier.fillMaxSize()
+        )
+      }
+    }
+
+    is AppScreen.Edit -> {
+      val component = components.find { it.id == screen.componentId }
+      if (component != null) {
+        key(component.id) {
+          AddComponentDialog(
+            userNick = userNick,
+            existingComponent = component,
+            isAdmin = isAdmin,
+            onDismiss = { currentScreen = AppScreen.Detail(component.id) },
+            onSave = { name, partNumber, category, shortDesc, imgUrl, imgs, pins, char, resChar, pullupReq, pullupVal, pullupNote, notes, connImg, deadTimeTables, flowRateCc, flowPressureBar, innerDia, outerDia, boltW, boltH, boltD1, boltD2, injImp, ecuOuts, ecuDim ->
+              if (isAdmin) {
+                viewModel.updateComponent(
+                  id = component.id,
+                  name = name,
+                  partNumber = partNumber,
+                  category = category,
+                  shortDescription = shortDesc,
+                  imageUrl = imgUrl,
+                  images = imgs,
+                  pins = pins,
+                  characteristic = char,
+                  resistanceCharacteristic = resChar,
+                  pullupRequired = pullupReq,
+                  pullupRecommendedValue = pullupVal,
+                  pullupNote = pullupNote,
+                  importantNotes = notes,
+                  connectorImageUrl = connImg,
+                  deadTimeTables = deadTimeTables,
+                  flowRateCc = flowRateCc,
+                  flowPressureBar = flowPressureBar,
+                  innerDiameterMm = innerDia,
+                  outerDiameterMm = outerDia,
+                  boltSpacingWidthMm = boltW,
+                  boltSpacingHeightMm = boltH,
+                  boltDiagonal1Mm = boltD1,
+                  boltDiagonal2Mm = boltD2,
+                  injectorImpedance = injImp,
+                  ecuOutputsCount = ecuOuts,
+                  ecuBoardDimensions = ecuDim
+                )
+                android.widget.Toast.makeText(
+                  context,
+                  "Zaktualizowano w chmurze Firestore!",
+                  android.widget.Toast.LENGTH_SHORT
+                ).show()
+                currentScreen = AppScreen.Detail(component.id)
+              } else {
+                viewModel.submitEditProposal(
+                  id = component.id,
+                  name = name,
+                  partNumber = partNumber,
+                  category = category,
+                  shortDescription = shortDesc,
+                  imageUrl = imgUrl,
+                  images = imgs,
+                  pins = pins,
+                  characteristic = char,
+                  resistanceCharacteristic = resChar,
+                  pullupRequired = pullupReq,
+                  pullupRecommendedValue = pullupVal,
+                  pullupNote = pullupNote,
+                  importantNotes = notes,
+                  connectorImageUrl = connImg,
+                  deadTimeTables = deadTimeTables,
+                  flowRateCc = flowRateCc,
+                  flowPressureBar = flowPressureBar,
+                  innerDiameterMm = innerDia,
+                  outerDiameterMm = outerDia,
+                  boltSpacingWidthMm = boltW,
+                  boltSpacingHeightMm = boltH,
+                  boltDiagonal1Mm = boltD1,
+                  boltDiagonal2Mm = boltD2,
+                  injectorImpedance = injImp,
+                  ecuOutputsCount = ecuOuts,
+                  ecuBoardDimensions = ecuDim,
+                  editReason = "Zaproponowano aktualizację parametrów czujnika"
+                )
+                android.widget.Toast.makeText(
+                  context,
+                  "Propozycja zmian została przesłana do zatwierdzenia przez Administratora (yetigiusz@gmail.com)!",
+                  android.widget.Toast.LENGTH_LONG
+                ).show()
+                currentScreen = AppScreen.Detail(component.id)
+              }
             },
+            onDelete = if (isAdmin) {
+              {
+                viewModel.deleteComponent(component.id)
+                android.widget.Toast.makeText(
+                  context,
+                  "Wpis został usunięty z chmury!",
+                  android.widget.Toast.LENGTH_SHORT
+                ).show()
+                currentScreen = AppScreen.Home
+              }
+            } else null,
             modifier = Modifier.fillMaxSize()
           )
         }
@@ -535,6 +773,14 @@ fun TuningAppContent(
           android.widget.Toast.makeText(context, "Nie można otworzyć przeglądarki: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
         }
       }
+    )
+  }
+
+  if (showMySubmissionsDialog) {
+    MySubmissionsDialog(
+      requests = moderationRequests,
+      currentUserId = Firebase.auth.currentUser?.uid,
+      onDismiss = { showMySubmissionsDialog = false }
     )
   }
 }

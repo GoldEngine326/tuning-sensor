@@ -46,6 +46,8 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -91,6 +93,8 @@ fun DetailScreen(
   onEditClick: (TuningComponent) -> Unit,
   onVote: (Int) -> Unit,
   onDelete: ((TuningComponent) -> Unit)? = null,
+  isAdmin: Boolean = false,
+  onRequestDelete: ((TuningComponent, String) -> Unit)? = null,
   modifier: Modifier = Modifier
 ) {
   BackHandler {
@@ -102,39 +106,99 @@ fun DetailScreen(
   var showFullScreenImage by remember { mutableStateOf(false) }
   var fullScreenConnectorImage by remember { mutableStateOf<String?>(null) }
   var showDeleteDialog by remember { mutableStateOf(false) }
+  var deleteReasonInput by remember { mutableStateOf("") }
 
   val activeHeroImage = allPhotos.getOrNull(selectedPhotoIndex) ?: component.primaryImage
 
-  if (showDeleteDialog && onDelete != null) {
-    AlertDialog(
-      onDismissRequest = { showDeleteDialog = false },
-      title = {
-        Text("Usuń czujnik z bazy", fontWeight = FontWeight.Bold, color = TextPrimary)
-      },
-      text = {
-        Text(
-          "Czy na pewno chcesz usunąć \"${component.name}\"? Zostanie trwale usunięty ze wspólnej bazy w chmurze.",
-          color = TextSecondary
-        )
-      },
-      confirmButton = {
-        Button(
-          onClick = {
+  if (showDeleteDialog) {
+    if (isAdmin && onDelete != null) {
+      AlertDialog(
+        onDismissRequest = { showDeleteDialog = false },
+        title = {
+          Text("Usuń czujnik z bazy (Administrator)", fontWeight = FontWeight.Bold, color = TextPrimary)
+        },
+        text = {
+          Text(
+            "Czy na pewno chcesz trwale usunąć \"${component.name}\"? Jako Administrator usuniesz go bezpośrednio ze wspólnej bazy w chmurze Firestore.",
+            color = TextSecondary
+          )
+        },
+        confirmButton = {
+          Button(
+            onClick = {
+              showDeleteDialog = false
+              onDelete(component)
+            },
+            colors = ButtonDefaults.buttonColors(containerColor = TuningRed)
+          ) {
+            Text("Usuń natychmiast", color = Color.White, fontWeight = FontWeight.Bold)
+          }
+        },
+        dismissButton = {
+          TextButton(onClick = { showDeleteDialog = false }) {
+            Text("Anuluj", color = TextSecondary)
+          }
+        },
+        containerColor = DarkSurfaceElevated
+      )
+    } else {
+      AlertDialog(
+        onDismissRequest = {
+          showDeleteDialog = false
+          deleteReasonInput = ""
+        },
+        title = {
+          Text("Zgłoś czujnik do usunięcia", fontWeight = FontWeight.Bold, color = TextPrimary)
+        },
+        text = {
+          Column {
+            Text(
+              "Wniosek o usunięcie czujnika \"${component.name}\" zostanie przesłany do Administratora (yetigiusz@gmail.com).",
+              color = TextSecondary,
+              fontSize = 12.sp
+            )
+            Spacer(Modifier.height(10.dp))
+            OutlinedTextField(
+              value = deleteReasonInput,
+              onValueChange = { deleteReasonInput = it },
+              label = { Text("Powód usunięcia (wymagany)") },
+              placeholder = { Text("np. Błędny pinout / niepoprawne dane / duplikat") },
+              modifier = Modifier.fillMaxWidth(),
+              maxLines = 3,
+              colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = TuningRed,
+                unfocusedBorderColor = BorderStroke,
+                focusedTextColor = TextPrimary,
+                unfocusedTextColor = TextPrimary
+              )
+            )
+          }
+        },
+        confirmButton = {
+          Button(
+            onClick = {
+              val reason = deleteReasonInput.trim().ifBlank { "Prośba użytkownika o usunięcie" }
+              showDeleteDialog = false
+              deleteReasonInput = ""
+              onRequestDelete?.invoke(component, reason)
+            },
+            colors = ButtonDefaults.buttonColors(containerColor = TuningRed),
+            enabled = deleteReasonInput.isNotBlank()
+          ) {
+            Text("Wyślij wniosek do Admina", color = Color.White, fontWeight = FontWeight.Bold)
+          }
+        },
+        dismissButton = {
+          TextButton(onClick = {
             showDeleteDialog = false
-            onDelete(component)
-          },
-          colors = ButtonDefaults.buttonColors(containerColor = TuningRed)
-        ) {
-          Text("Usuń", color = Color.White, fontWeight = FontWeight.Bold)
-        }
-      },
-      dismissButton = {
-        TextButton(onClick = { showDeleteDialog = false }) {
-          Text("Anuluj", color = TextSecondary)
-        }
-      },
-      containerColor = DarkSurfaceElevated
-    )
+            deleteReasonInput = ""
+          }) {
+            Text("Anuluj", color = TextSecondary)
+          }
+        },
+        containerColor = DarkSurfaceElevated
+      )
+    }
   }
 
   Scaffold(

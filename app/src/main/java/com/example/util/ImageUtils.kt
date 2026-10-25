@@ -41,8 +41,8 @@ object ImageUtils {
   fun compressImageUriToBase64(
     context: Context,
     uri: Uri,
-    maxDimension: Int = 800,
-    quality: Int = 75
+    maxDimension: Int = 640,
+    quality: Int = 70
   ): String? {
     return try {
       val contentResolver = context.contentResolver
@@ -116,12 +116,12 @@ object ImageUtils {
       val base64Data = Base64.encodeToString(jpegBytes, Base64.NO_WRAP)
       val dataUri = "data:image/jpeg;base64,$base64Data"
 
-      // 7. Save a local cache file with full SHA-256 hash of the image content
-      // Ensuring absolute uniqueness per photo and eliminating collisions
+      // 7. Save a local cache file immediately using the fast cache key
       try {
-        val hash = sha256Bytes(jpegBytes)
-        val cacheFile = File(context.cacheDir, "$FILE_PREFIX$hash.jpg")
+        val cacheKey = getFastCacheKey(dataUri)
+        val cacheFile = File(context.cacheDir, "$FILE_PREFIX$cacheKey.jpg")
         FileOutputStream(cacheFile).use { it.write(jpegBytes) }
+        modelCache[cacheKey] = cacheFile
       } catch (e: Exception) {
         Log.w(TAG, "Cache save skipped: ${e.message}")
       }
@@ -133,11 +133,10 @@ object ImageUtils {
     }
   }
 
-  private val ioScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO + kotlinx.coroutines.SupervisorJob())
   private val modelCache = java.util.concurrent.ConcurrentHashMap<String, Any>(128)
 
   fun getFastCacheKey(source: String): String {
-    return if (source.startsWith("data:image")) {
+    return if (source.startsWith("data:image", ignoreCase = true)) {
       "b64_${source.length}_${source.take(64).hashCode().toUInt()}_${source.takeLast(64).hashCode().toUInt()}"
     } else {
       source
@@ -145,59 +144,47 @@ object ImageUtils {
   }
 
   fun preCacheBase64Image(context: Context, source: String): String {
-    if (source.isBlank() || !source.startsWith("data:image")) return source
-    val cacheKey = getFastCacheKey(source)
-    val cacheFile = File(context.cacheDir, "$FILE_PREFIX$cacheKey.jpg")
-    if (cacheFile.exists() && cacheFile.length() > 0) {
-      modelCache[cacheKey] = cacheFile
-      return cacheFile.absolutePath
+    if (source.isNotBlank()) {
+      getImageModel(context, source)
     }
-    // Asynchronously decode and save to file in background
-    ioScope.launch {
-      try {
-        val base64Part = source.substringAfter("base64,")
-        val bytes = Base64.decode(base64Part, Base64.DEFAULT)
-        FileOutputStream(cacheFile).use { it.write(bytes) }
-        modelCache[cacheKey] = cacheFile
-      } catch (_: Exception) {}
-    }
-    return cacheFile.absolutePath
+    return source
   }
 
   /**
    * Returns a model usable by Coil (ImageRequest.Builder.data):
    * - File for cached base64 photos or local files
-   * - ByteArray for freshly decoded Base64 URIs
-   * - String URL for remote web links
+   * - String URL for remote web links or data URIs
    */
   fun getImageModel(context: Context, source: String?): Any? {
     if (source.isNullOrBlank()) return null
     val trimmed = source.trim()
+    if (trimmed.isBlank()) return null
+
     val cacheKey = getFastCacheKey(trimmed)
+    val cached = modelCache[cacheKey]
+    if (cached is File && cached.exists() && cached.length() > 0) {
+      return cached
+    }
 
-    modelCache[cacheKey]?.let { return it }
-
-    val model: Any? = if (trimmed.startsWith("data:image")) {
+    val model: Any? = if (trimmed.startsWith("data:image", ignoreCase = true)) {
       try {
         val cacheFile = File(context.cacheDir, "$FILE_PREFIX$cacheKey.jpg")
         if (cacheFile.exists() && cacheFile.length() > 0) {
           cacheFile
         } else {
-          // Offload Base64 decode and file persistence to IO thread to prevent main thread jank
-          ioScope.launch {
-            try {
-              val base64Part = trimmed.substringAfter("base64,")
-              val bytes = Base64.decode(base64Part, Base64.DEFAULT)
-              FileOutputStream(cacheFile).use { it.write(bytes) }
-              modelCache[cacheKey] = cacheFile
-            } catch (_: Exception) {}
+          // Decode synchronously to cache file so Coil can load it immediately
+          val base64Part = if (trimmed.contains("base64,")) {
+            trimmed.substringAfter("base64,")
+          } else {
+            trimmed.substringAfter(",")
           }
-          // Return the trimmed data URI directly - Coil's DataUriFetcher decodes it on Dispatchers.IO
-          trimmed
+          val bytes = Base64.decode(base64Part, Base64.DEFAULT)
+          FileOutputStream(cacheFile).use { it.write(bytes) }
+          cacheFile
         }
       } catch (e: Exception) {
         Log.e(TAG, "Error decoding base64 image", e)
-        null
+        trimmed
       }
     } else if (trimmed.startsWith("/")) {
       val file = File(trimmed)

@@ -12,6 +12,12 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isAdmin() {
+      return isSignedIn() &&
+             request.auth.token.email != null &&
+             request.auth.token.email.matches('(?i)^yetigiusz@gmail\\.com$');
+    }
+
     function incoming() {
       return request.resource.data;
     }
@@ -70,31 +76,47 @@ service cloud.firestore {
     match /sensors/{sensorId} {
       allow get, list: if isSignedIn();
 
+      allow create: if isSignedIn() && (
+                       isAdmin() || (
+                         isValidId(sensorId) &&
+                         incoming().id == sensorId &&
+                         incoming().authorId == request.auth.uid &&
+                         incoming().createdAt is timestamp &&
+                         incoming().createdAt <= request.time &&
+                         isValidSensor(incoming())
+                       )
+                    );
+
+      allow update: if isSignedIn() && (
+                       isAdmin() || (
+                         isValidId(sensorId) &&
+                         incoming().id == existing().id &&
+                         incoming().authorId == existing().authorId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().updatedAt is timestamp &&
+                         incoming().updatedAt <= request.time &&
+                         isValidSensor(incoming()) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'name', 'partNumber', 'category', 'shortDescription', 'imageUrl', 'images',
+                           'vectorIllustrationKey', 'pins', 'characteristic', 'resistanceCharacteristic',
+                           'pullupRequired', 'pullupRecommendedValue', 'pullupNote', 'importantNotes',
+                           'authorNick', 'lastEditedByNick', 'lastEditedAt', 'updatedAt',
+                           'rating', 'ratingVotesCount', 'isUserAdded', 'connectorImageUrl'
+                         ])
+                       )
+                    );
+
+      allow delete: if isSignedIn() && (isAdmin() || isValidId(sensorId));
+    }
+
+    // Moderation requests queue: users submit requests, only administrator approves/rejects
+    match /moderation_requests/{requestId} {
+      allow get, list: if isSignedIn();
       allow create: if isSignedIn() &&
-                       isValidId(sensorId) &&
-                       incoming().id == sensorId &&
-                       incoming().authorId == request.auth.uid &&
-                       incoming().createdAt is timestamp &&
-                       incoming().createdAt <= request.time &&
-                       isValidSensor(incoming());
-
-      allow update: if isSignedIn() &&
-                       isValidId(sensorId) &&
-                       incoming().id == existing().id &&
-                       incoming().authorId == existing().authorId &&
-                       incoming().createdAt == existing().createdAt &&
-                       incoming().updatedAt is timestamp &&
-                       incoming().updatedAt <= request.time &&
-                       isValidSensor(incoming()) &&
-                       incoming().diff(existing()).affectedKeys().hasOnly([
-                         'name', 'partNumber', 'category', 'shortDescription', 'imageUrl', 'images',
-                         'vectorIllustrationKey', 'pins', 'characteristic', 'resistanceCharacteristic',
-                         'pullupRequired', 'pullupRecommendedValue', 'pullupNote', 'importantNotes',
-                         'authorNick', 'lastEditedByNick', 'lastEditedAt', 'updatedAt',
-                         'rating', 'ratingVotesCount', 'isUserAdded', 'connectorImageUrl'
-                       ]);
-
-      allow delete: if isSignedIn() && isValidId(sensorId);
+                       incoming().requesterId == request.auth.uid &&
+                       incoming().status == 'PENDING' &&
+                       incoming().createdAt is timestamp;
+      allow update, delete: if isAdmin();
     }
   }
 }

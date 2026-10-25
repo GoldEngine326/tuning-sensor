@@ -21,18 +21,24 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.ElectricalServices
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Architecture
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -89,6 +95,10 @@ fun HomeScreen(
   onAddClick: () -> Unit,
   onOpenNickDialog: () -> Unit,
   onSignOut: () -> Unit = {},
+  isAdmin: Boolean = false,
+  pendingRequestsCount: Int = 0,
+  onOpenModeration: () -> Unit = {},
+  onOpenMySubmissions: () -> Unit = {},
   modifier: Modifier = Modifier
 ) {
   var searchQuery by remember { mutableStateOf("") }
@@ -142,14 +152,60 @@ fun HomeScreen(
                 color = TextPrimary
               )
               Text(
-                text = "Baza wiedzy & pinoutów ECU",
+                text = if (isAdmin) "Administrator (yetigiusz)" else "Baza wiedzy & pinoutów ECU",
                 fontSize = 11.sp,
-                color = TextSecondary
+                color = if (isAdmin) TunerAmber else TextSecondary,
+                fontWeight = if (isAdmin) FontWeight.Bold else FontWeight.Normal
               )
             }
           }
         },
         actions = {
+          if (isAdmin) {
+            IconButton(
+              onClick = onOpenModeration,
+              modifier = Modifier
+                .size(40.dp)
+                .testTag("admin_moderation_button")
+            ) {
+              BadgedBox(
+                badge = {
+                  if (pendingRequestsCount > 0) {
+                    Badge(
+                      containerColor = TuningRed,
+                      contentColor = Color.White
+                    ) {
+                      Text("$pendingRequestsCount", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                  }
+                }
+              ) {
+                Icon(
+                  imageVector = Icons.Default.Shield,
+                  contentDescription = "Panel Moderacji",
+                  tint = if (pendingRequestsCount > 0) TunerAmber else TextPrimary,
+                  modifier = Modifier.size(22.dp)
+                )
+              }
+            }
+          } else {
+            IconButton(
+              onClick = onOpenMySubmissions,
+              modifier = Modifier
+                .size(36.dp)
+                .testTag("my_submissions_button")
+            ) {
+              Icon(
+                imageVector = Icons.Default.Assignment,
+                contentDescription = "Moje zgłoszenia",
+                tint = TunerCyan,
+                modifier = Modifier.size(20.dp)
+              )
+            }
+          }
+
+          Spacer(Modifier.width(4.dp))
+
           // Nickname indicator button
           Row(
             modifier = Modifier
@@ -163,7 +219,7 @@ fun HomeScreen(
             Icon(
               imageVector = Icons.Default.Person,
               contentDescription = "Zmień nick",
-              tint = TunerAmber,
+              tint = if (isAdmin) TunerAmber else TunerCyan,
               modifier = Modifier.size(16.dp)
             )
             Spacer(Modifier.width(4.dp))
@@ -177,7 +233,7 @@ fun HomeScreen(
             )
           }
 
-          Spacer(Modifier.width(6.dp))
+          Spacer(Modifier.width(4.dp))
 
           IconButton(
             onClick = onSignOut,
@@ -209,6 +265,57 @@ fun HomeScreen(
         .fillMaxSize()
         .padding(innerPadding)
     ) {
+      if (isAdmin && pendingRequestsCount > 0) {
+        Card(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .clickable { onOpenModeration() }
+            .testTag("admin_pending_banner"),
+          colors = CardDefaults.cardColors(containerColor = Color(0xFF2E2005)),
+          border = androidx.compose.foundation.BorderStroke(1.dp, TunerAmber),
+          shape = RoundedCornerShape(12.dp)
+        ) {
+          Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Box(
+              modifier = Modifier
+                .size(38.dp)
+                .background(TunerAmber, RoundedCornerShape(8.dp)),
+              contentAlignment = Alignment.Center
+            ) {
+              Icon(
+                Icons.Default.NotificationsActive,
+                contentDescription = null,
+                tint = Color.Black,
+                modifier = Modifier.size(22.dp)
+              )
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+              Text(
+                text = "Zgłoszenia do akceptacji: $pendingRequestsCount",
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                color = Color.White
+              )
+              Text(
+                text = "Użytkownicy przesłali propozycje (dodanie, edycja lub usunięcie czujników). Dotknij, aby zatwierdzić.",
+                fontSize = 11.sp,
+                color = Color(0xFFE5C58B)
+              )
+            }
+            Icon(
+              Icons.AutoMirrored.Filled.ArrowForward,
+              contentDescription = null,
+              tint = TunerAmber,
+              modifier = Modifier.size(18.dp)
+            )
+          }
+        }
+      }
       // 1. TOP SEARCH BAR
       Column(
         modifier = Modifier
